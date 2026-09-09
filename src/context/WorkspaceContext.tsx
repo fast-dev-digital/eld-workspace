@@ -57,6 +57,7 @@ export interface AgencySettings {
   website: string
   city: string
   segment: string
+  monthlyFinancialGoal?: number
 }
 
 interface WorkspaceContextType {
@@ -235,6 +236,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     website: 'https://eld.agencia',
     city: 'São Paulo - SP',
     segment: 'Marketing Digital, Performance & Conteúdo',
+    monthlyFinancialGoal: 35000,
   }
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>(() => getStored('team', []))
   const [agencySettings, setAgencySettings] = useState<AgencySettings>(() =>

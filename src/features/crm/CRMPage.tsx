@@ -22,6 +22,7 @@ import {
   Sparkles,
   Phone,
   GripVertical,
+  Calendar,
 } from 'lucide-react'
 
 interface StageConfig {
@@ -42,7 +43,7 @@ const STAGES: StageConfig[] = [
 ]
 
 export const CRMPage: React.FC = () => {
-  const { leads, addLead, updateLead, updateLeadStage, deleteLead, convertLeadToClient } =
+  const { leads, addLead, updateLead, updateLeadStage, deleteLead, convertLeadToClient, addMeeting } =
     useWorkspace()
 
   const [viewMode, setViewMode] = useState<'kanban' | 'table'>('kanban')
@@ -57,6 +58,49 @@ export const CRMPage: React.FC = () => {
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingLead, setEditingLead] = useState<Lead | null>(null)
+
+  // Quick Meeting Modal State
+  const [meetingLead, setMeetingLead] = useState<Lead | null>(null)
+  const [meetingForm, setMeetingForm] = useState({
+    title: '',
+    dateTime: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
+    agenda: '',
+    notes: '',
+  })
+
+  const openScheduleMeeting = (lead: Lead) => {
+    setMeetingLead(lead)
+    setMeetingForm({
+      title: `Reunião Comercial — ${lead.companyName || lead.name}`,
+      dateTime: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
+      agenda: `Apresentação comercial e alinhamento de briefing sobre ${lead.serviceInterested || 'serviços de marketing'}`,
+      notes: `Lead: ${lead.name} (${lead.phone || lead.email || 'Sem contato'}). Origem: ${lead.origin || 'Direta'}`,
+    })
+  }
+
+  const handleSaveQuickMeeting = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!meetingLead) return
+
+    addMeeting({
+      title: meetingForm.title,
+      relatedToType: 'lead',
+      relatedToId: meetingLead.id,
+      relatedToName: meetingLead.companyName || meetingLead.name,
+      dateTime: meetingForm.dateTime,
+      attendees: [meetingLead.name, meetingLead.responsible || 'Lucas (Comercial ELD)'],
+      agenda: meetingForm.agenda,
+      notes: meetingForm.notes,
+      nextSteps: ['Enviar ata e próximos passos', 'Montar briefing/proposta'],
+      status: 'agendada',
+    })
+
+    if (meetingLead.stage === 'lead') {
+      updateLeadStage(meetingLead.id, 'reuniao')
+    }
+
+    setMeetingLead(null)
+  }
 
   // Form State
   const [formData, setFormData] = useState({
@@ -496,9 +540,28 @@ export const CRMPage: React.FC = () => {
                             </div>
                           )}
 
+                          {/* Quick meeting banner when in reuniao stage */}
+                          {lead.stage === 'reuniao' && (
+                            <button
+                              type="button"
+                              onClick={() => openScheduleMeeting(lead)}
+                              className="w-full text-[11px] py-1 px-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold flex items-center justify-center gap-1.5 transition-colors border border-blue-200/60 shadow-2xs"
+                            >
+                              <Calendar className="w-3.5 h-3.5 text-blue-600" />
+                              Agendar Reunião
+                            </button>
+                          )}
+
                           {/* Card Actions */}
                           <div className="flex items-center justify-between pt-2 border-t border-zinc-100">
                             <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => openScheduleMeeting(lead)}
+                                className="p-1 text-zinc-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                title="Agendar Reunião com este Lead"
+                              >
+                                <Calendar className="w-3.5 h-3.5" />
+                              </button>
                               <button
                                 onClick={() => openEditModal(lead)}
                                 className="p-1 text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 rounded transition-colors"
@@ -767,6 +830,89 @@ export const CRMPage: React.FC = () => {
                 </Button>
                 <Button type="submit" variant="primary" size="sm">
                   {editingLead ? 'Salvar Alterações' : 'Criar Lead'}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Meeting Modal from Lead */}
+      {meetingLead && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-950/60 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-zinc-200 space-y-4">
+            <div className="flex items-center justify-between border-b border-zinc-200 pb-3">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-blue-600" />
+                <h2 className="text-base font-extrabold text-zinc-900">
+                  Agendar Reunião com Lead
+                </h2>
+              </div>
+              <button
+                onClick={() => setMeetingLead(null)}
+                className="p-1 text-zinc-400 hover:text-zinc-900 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-800 flex items-center justify-between">
+              <div>
+                <span className="font-bold block text-blue-900">{meetingLead.companyName || meetingLead.name}</span>
+                <span className="text-blue-700">Contato: {meetingLead.name} ({meetingLead.phone || meetingLead.email || 'Sem contato'})</span>
+              </div>
+              <span className="px-2 py-1 rounded bg-blue-200 text-blue-900 font-bold text-[10px] uppercase">
+                Etapa: {meetingLead.stage}
+              </span>
+            </div>
+
+            <form onSubmit={handleSaveQuickMeeting} className="space-y-4 text-xs">
+              <Input
+                label="Título da Reunião"
+                required
+                value={meetingForm.title}
+                onChange={(e) => setMeetingForm({ ...meetingForm, title: e.target.value })}
+              />
+
+              <Input
+                label="Data e Horário"
+                type="datetime-local"
+                required
+                value={meetingForm.dateTime}
+                onChange={(e) => setMeetingForm({ ...meetingForm, dateTime: e.target.value })}
+              />
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-zinc-700 mb-1.5">
+                  Pauta / Assunto Principal
+                </label>
+                <textarea
+                  rows={2}
+                  required
+                  value={meetingForm.agenda}
+                  onChange={(e) => setMeetingForm({ ...meetingForm, agenda: e.target.value })}
+                  className="w-full rounded-lg border border-zinc-200 p-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-zinc-700 mb-1.5">
+                  Notas Prévias / Instruções
+                </label>
+                <textarea
+                  rows={2}
+                  value={meetingForm.notes}
+                  onChange={(e) => setMeetingForm({ ...meetingForm, notes: e.target.value })}
+                  className="w-full rounded-lg border border-zinc-200 p-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-200">
+                <Button type="button" variant="outline" size="sm" onClick={() => setMeetingLead(null)}>
+                  Cancelar
+                </Button>
+                <Button type="submit" variant="primary" size="sm">
+                  Confirmar Agendamento
                 </Button>
               </div>
             </form>

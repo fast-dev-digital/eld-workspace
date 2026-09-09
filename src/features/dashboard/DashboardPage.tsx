@@ -58,7 +58,11 @@ export const DashboardPage: React.FC = () => {
     ? Math.round(activeProjects.reduce((acc, p) => acc + p.progress, 0) / activeProjects.length)
     : 0
 
+  const todayStr = new Date().toISOString().split('T')[0]
   const pendingTasks = tasks.filter((t) => t.status !== 'concluido')
+  const overdueTasks = tasks.filter(
+    (t) => t.status !== 'concluido' && t.dueDate && t.dueDate < todayStr
+  )
   const urgentTasks = tasks.filter((t) => t.priority === 'urgente' && t.status !== 'concluido')
 
   const pendingApprovals = approvals.filter(
@@ -247,8 +251,15 @@ export const DashboardPage: React.FC = () => {
             <span className="text-xs font-semibold text-zinc-600">{avgProgress}% progresso</span>
           </div>
           <div className="text-xs text-zinc-600 font-medium flex items-center justify-between pt-1 border-t border-zinc-100">
-            <span>Tarefas Abertas:</span>
-            <span className="text-zinc-900 font-semibold tabular-nums">{pendingTasks.length} tarefas</span>
+            <span>Tarefas:</span>
+            <div className="flex items-center gap-1.5 tabular-nums">
+              <span className="text-zinc-900 font-semibold">{pendingTasks.length} abertas</span>
+              {overdueTasks.length > 0 && (
+                <span className="text-rose-600 font-bold bg-rose-50 px-1.5 py-0.5 rounded text-[10px] border border-rose-200">
+                  {overdueTasks.length} atrasadas
+                </span>
+              )}
+            </div>
           </div>
         </Card>
 
@@ -319,17 +330,36 @@ export const DashboardPage: React.FC = () => {
             </div>
 
             <div className="space-y-2.5">
+              {overdueTasks.length > 0 && (
+                <div
+                  onClick={() => navigate('/tarefas')}
+                  className="p-3 bg-rose-50 border border-rose-300 rounded-xl space-y-1 cursor-pointer hover:bg-rose-100/70 hover:shadow-xs transition-all"
+                  title="Ir para Tarefas Atrasadas"
+                >
+                  <div className="flex items-center justify-between text-xs font-bold text-rose-900">
+                    <span className="flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5 text-rose-600" />
+                      {overdueTasks.length} Tarefa(s) Atrasada(s)
+                    </span>
+                    <Badge variant="red" size="sm">Atrasada</Badge>
+                  </div>
+                  <p className="text-[11px] text-rose-700 font-medium">
+                    {overdueTasks[0].title} ({overdueTasks[0].clientName})
+                  </p>
+                </div>
+              )}
+
               {urgentTasks.length > 0 && (
                 <div
                   onClick={() => navigate('/tarefas')}
-                  className="p-3 bg-rose-50 border border-rose-200 rounded-xl space-y-1 cursor-pointer hover:bg-rose-100/70 hover:shadow-xs transition-all"
+                  className="p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-1 cursor-pointer hover:bg-amber-100/70 hover:shadow-xs transition-all"
                   title="Ir para Tarefas"
                 >
-                  <div className="flex items-center justify-between text-xs font-bold text-rose-900">
+                  <div className="flex items-center justify-between text-xs font-bold text-amber-900">
                     <span>{urgentTasks.length} Tarefa(s) Urgente(s)</span>
-                    <Badge variant="red" size="sm">Urgente</Badge>
+                    <Badge variant="yellow" size="sm">Urgente</Badge>
                   </div>
-                  <p className="text-[11px] text-rose-700">
+                  <p className="text-[11px] text-amber-700">
                     {urgentTasks[0].title} ({urgentTasks[0].clientName})
                   </p>
                 </div>
@@ -369,12 +399,12 @@ export const DashboardPage: React.FC = () => {
                 </div>
               )}
 
-              {urgentTasks.length === 0 && pendingApprovals.length === 0 && upcomingMeetings.length === 0 && (
+              {overdueTasks.length === 0 && urgentTasks.length === 0 && pendingApprovals.length === 0 && upcomingMeetings.length === 0 && (
                 <div className="p-4 bg-emerald-50/60 border border-emerald-200/80 rounded-xl text-center space-y-1.5">
                   <CheckCircle2 className="w-5 h-5 text-emerald-600 mx-auto" />
                   <div className="text-xs font-semibold text-emerald-900">Tudo em dia!</div>
                   <p className="text-[11px] text-emerald-700">
-                    Nenhuma tarefa urgente, aprovação pendente ou reunião agendada no momento.
+                    Nenhuma tarefa atrasada, tarefa urgente, aprovação pendente ou reunião agendada no momento.
                   </p>
                 </div>
               )}

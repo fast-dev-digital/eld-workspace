@@ -332,6 +332,31 @@ export const SettingsPage: React.FC = () => {
                   />
                 </div>
 
+                <div className="p-3.5 bg-brand-50/50 border border-brand-200/70 rounded-xl space-y-1.5">
+                  <span className="text-[11px] font-bold text-brand-900 uppercase tracking-wider block">
+                    Meta Operacional de Receita (Módulo Financeiro)
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
+                    <Input
+                      label="Meta Mensal de Faturamento (R$)"
+                      type="number"
+                      min={0}
+                      step={500}
+                      value={agencyForm.monthlyFinancialGoal ?? 35000}
+                      onChange={(e) =>
+                        setAgencyForm({
+                          ...agencyForm,
+                          monthlyFinancialGoal: Number(e.target.value) || 0,
+                        })
+                      }
+                      placeholder="35000"
+                    />
+                    <p className="text-[11px] text-zinc-500 pt-3 sm:pt-0">
+                      Utilizada para calcular o atingimento de metas e o progresso mensal na aba <strong>Financeiro</strong>.
+                    </p>
+                  </div>
+                </div>
+
                 <div className="pt-2 flex justify-end">
                   <Button type="submit" variant="primary" size="sm">
                     Salvar Dados da Agência

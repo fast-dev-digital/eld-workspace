@@ -17,13 +17,19 @@ import {
   CheckSquare,
   FolderKanban,
   AlertCircle,
+  ExternalLink,
+  CheckCircle2,
+  ChevronRight,
 } from 'lucide-react'
 
 export const ProjectsPage: React.FC = () => {
-  const { projects, clients, tasks, addProject, updateProject, deleteProject } = useWorkspace()
+  const { projects, clients, tasks, approvals, addProject, updateProject, deleteProject } = useWorkspace()
 
   const [searchTerm, setSearchTerm] = useState('')
   const [filterStatus, setFilterStatus] = useState<string>('all')
+
+  // Selected Project for 360 View Drawer
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null)
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -115,6 +121,14 @@ export const ProjectsPage: React.FC = () => {
     const matchesStatus = filterStatus === 'all' || proj.status === filterStatus
     return matchesSearch && matchesStatus
   })
+
+  const selectedProjectTasks = selectedProject
+    ? tasks.filter((t) => t.projectId === selectedProject.id)
+    : []
+
+  const selectedProjectApprovals = selectedProject
+    ? approvals.filter((a) => a.projectId === selectedProject.id)
+    : []
 
   const getStatusBadge = (status: ProjectStatus) => {
     switch (status) {
@@ -283,22 +297,25 @@ export const ProjectsPage: React.FC = () => {
 
                 {/* Footer */}
                 <div className="pt-3 border-t border-zinc-100 flex items-center justify-between text-xs">
-                  <span className="text-[11px] text-zinc-500 flex items-center gap-1 font-medium">
-                    <CheckSquare className="w-3.5 h-3.5 text-zinc-400" />
-                    {completedTasksCount} de {relatedTasks.length} tarefas concluídas
-                  </span>
+                  <button
+                    onClick={() => setSelectedProject(project)}
+                    className="text-[11px] text-brand-600 hover:text-brand-700 flex items-center gap-1 font-bold transition-colors"
+                  >
+                    <CheckSquare className="w-3.5 h-3.5" />
+                    Ver {completedTasksCount}/{relatedTasks.length} tarefas & entregas <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
 
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => openEditModal(project)}
-                      className="p-1 text-zinc-400 hover:text-zinc-900 rounded"
+                      className="p-1 text-zinc-400 hover:text-zinc-900 rounded hover:bg-zinc-100 transition-colors"
                       title="Editar Projeto"
                     >
                       <Edit2 className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => handleDeleteProject(project.id, project.name)}
-                      className="p-1 text-zinc-400 hover:text-rose-600 rounded"
+                      className="p-1 text-zinc-400 hover:text-rose-600 rounded hover:bg-rose-50 transition-colors"
                       title="Excluir Projeto"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -308,6 +325,199 @@ export const ProjectsPage: React.FC = () => {
               </Card>
             )
           })}
+        </div>
+      )}
+
+      {/* 360º Project Details Drawer */}
+      {selectedProject && (
+        <div className="fixed inset-0 z-50 flex justify-end bg-zinc-950/60 backdrop-blur-xs">
+          <div className="bg-white max-w-xl w-full h-full shadow-2xl p-6 overflow-y-auto flex flex-col justify-between space-y-6">
+            <div className="space-y-5">
+              {/* Drawer Top Header */}
+              <div className="flex items-start justify-between border-b border-zinc-200 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-xl bg-zinc-900 text-brand-500 font-bold text-lg flex items-center justify-center border border-zinc-800">
+                    <FolderKanban className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-lg font-bold text-zinc-900 leading-tight">
+                        {selectedProject.name}
+                      </h2>
+                    </div>
+                    <p className="text-xs text-brand-700 font-bold flex items-center gap-1 mt-0.5">
+                      <Building2 className="w-3.5 h-3.5 text-brand-500" />
+                      {selectedProject.clientName}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => {
+                      const p = selectedProject
+                      setSelectedProject(null)
+                      openEditModal(p)
+                    }}
+                    className="p-1.5 text-zinc-500 hover:text-zinc-900 rounded-lg hover:bg-zinc-100"
+                    title="Editar Projeto"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => setSelectedProject(null)}
+                    className="p-1.5 text-zinc-400 hover:text-zinc-900 rounded-lg hover:bg-zinc-100"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Status & Badges */}
+              <div className="flex items-center gap-2">
+                {getStatusBadge(selectedProject.status)}
+                {getPriorityBadge(selectedProject.priority)}
+                <Badge variant="orange" size="sm">
+                  {selectedProject.progress}% Concluído
+                </Badge>
+              </div>
+
+              {/* Progress Bar */}
+              <div className="space-y-1.5 p-3.5 bg-zinc-50 rounded-xl border border-zinc-200">
+                <div className="flex items-center justify-between text-xs font-semibold">
+                  <span className="text-zinc-600">Evolução do Cronograma</span>
+                  <span className="text-brand-600 font-bold">{selectedProject.progress}%</span>
+                </div>
+                <div className="w-full h-2.5 bg-zinc-200 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-brand-500 rounded-full transition-all duration-300"
+                    style={{ width: `${selectedProject.progress}%` }}
+                  />
+                </div>
+                <div className="flex items-center justify-between text-[11px] text-zinc-500 pt-1">
+                  <span>Entregas Concluídas: {selectedProject.completedDeliverables} de {selectedProject.deliverablesCount} peças</span>
+                  <span className="font-bold tabular-nums text-zinc-900">{formatCurrency(selectedProject.value)}</span>
+                </div>
+              </div>
+
+              {/* Key Info Grid */}
+              <div className="grid grid-cols-2 gap-3 p-3.5 bg-zinc-50 rounded-xl border border-zinc-200 text-xs">
+                <div>
+                  <span className="text-[10px] font-semibold uppercase text-zinc-400 block">Responsável</span>
+                  <span className="font-semibold text-zinc-900">{selectedProject.responsible}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-semibold uppercase text-zinc-400 block">Data de Início</span>
+                  <span className="font-medium text-zinc-800">{formatDate(selectedProject.startDate)}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-semibold uppercase text-zinc-400 block">Prazo Final</span>
+                  <span className="font-bold text-zinc-900">{formatDate(selectedProject.dueDate)}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-semibold uppercase text-zinc-400 block">Valor do Contrato</span>
+                  <span className="font-bold text-brand-600">{formatCurrency(selectedProject.value)}</span>
+                </div>
+              </div>
+
+              {/* Description */}
+              {selectedProject.description && (
+                <div className="p-3 bg-zinc-50 border border-zinc-200 rounded-xl space-y-1">
+                  <span className="text-[10px] font-bold uppercase text-zinc-500">Escopo & Descrição</span>
+                  <p className="text-xs text-zinc-700 leading-relaxed">{selectedProject.description}</p>
+                </div>
+              )}
+
+              {/* Related Tasks (Escopo Módulo 03) */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-900 flex items-center gap-1.5">
+                    <CheckSquare className="w-3.5 h-3.5 text-brand-500" /> Tarefas do Projeto ({selectedProjectTasks.length})
+                  </h3>
+                </div>
+                <div className="space-y-1.5">
+                  {selectedProjectTasks.map((t) => (
+                    <div
+                      key={t.id}
+                      className="p-2.5 rounded-lg bg-white border border-zinc-200 text-xs space-y-1"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-zinc-900">{t.title}</span>
+                        <Badge variant={t.status === 'concluido' ? 'green' : 'gray'} size="sm">
+                          {t.status.replace('_', ' ')}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center justify-between text-[11px] text-zinc-500">
+                        <span>Resp: {t.responsible}</span>
+                        <span>Prazo: {formatDate(t.dueDate)}</span>
+                      </div>
+                    </div>
+                  ))}
+                  {selectedProjectTasks.length === 0 && (
+                    <p className="text-xs text-zinc-400 italic">Nenhuma tarefa cadastrada para este projeto.</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Related Approvals / Deliverables (Escopo Módulo 03) */}
+              <div className="space-y-2">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-900 flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-brand-500" /> Registro de Entregas & Aprovações ({selectedProjectApprovals.length})
+                </h3>
+                <div className="space-y-1.5">
+                  {selectedProjectApprovals.map((appr) => (
+                    <div
+                      key={appr.id}
+                      className="p-2.5 rounded-lg bg-white border border-zinc-200 text-xs space-y-1"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-zinc-900">{appr.title}</span>
+                        <Badge variant={appr.status === 'aprovado' ? 'green' : 'orange'} size="sm">
+                          {appr.status.replace('_', ' ')}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center justify-between text-[11px] text-zinc-500">
+                        <span>Etapa: {appr.stage}</span>
+                        <span>Prazo: {formatDate(appr.dueDate)}</span>
+                      </div>
+                      {appr.assetUrl && (
+                        <a
+                          href={appr.assetUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-[11px] font-bold text-brand-600 hover:text-brand-700 pt-0.5"
+                        >
+                          <ExternalLink className="w-3 h-3" /> Visualizar Material / Peça
+                        </a>
+                      )}
+                    </div>
+                  ))}
+                  {selectedProjectApprovals.length === 0 && (
+                    <p className="text-xs text-zinc-400 italic">Nenhum material de aprovação/entrega registrado para este projeto.</p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Drawer Footer */}
+            <div className="pt-4 border-t border-zinc-200 flex items-center justify-between">
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={() => {
+                  if (window.confirm(`Tem certeza que deseja excluir o projeto "${selectedProject.name}"?`)) {
+                    deleteProject(selectedProject.id)
+                    setSelectedProject(null)
+                  }
+                }}
+              >
+                Excluir Projeto
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setSelectedProject(null)}>
+                Fechar Detalhes
+              </Button>
+            </div>
+          </div>
         </div>
       )}
 

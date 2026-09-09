@@ -28,7 +28,7 @@ import {
 } from 'lucide-react'
 
 export const FinancialPage: React.FC = () => {
-  const { transactions, clients, addTransaction, updateTransaction, deleteTransaction } =
+  const { transactions, clients, agencySettings, addTransaction, updateTransaction, deleteTransaction } =
     useWorkspace()
 
   const [searchTerm, setSearchTerm] = useState('')
@@ -240,7 +240,7 @@ export const FinancialPage: React.FC = () => {
 
   const saldoLiquido = totalReceitas - totalDespesas
   const margemLucro = totalReceitas > 0 ? Math.round((saldoLiquido / totalReceitas) * 100) : 0
-  const metaFaturamento = 35000
+  const metaFaturamento = agencySettings?.monthlyFinancialGoal || 35000
   const progressoMeta = Math.min(100, Math.round((totalReceitas / metaFaturamento) * 100))
 
   const filteredTransactions = periodTransactions.filter((t) => {

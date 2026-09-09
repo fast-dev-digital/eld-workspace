@@ -21,10 +21,14 @@ import {
   Layers,
   Building2,
   Download,
+  Calendar,
+  FileText,
+  ExternalLink,
+  Clock,
 } from 'lucide-react'
 
 export const ClientsPage: React.FC = () => {
-  const { clients, projects, tasks, addClient, updateClient, deleteClient } =
+  const { clients, projects, tasks, meetings, contracts, addClient, updateClient, deleteClient } =
     useWorkspace()
 
   const [searchTerm, setSearchTerm] = useState('')
@@ -167,6 +171,22 @@ export const ClientsPage: React.FC = () => {
     : []
   const clientTasks = selectedClient
     ? tasks.filter((t) => t.clientId === selectedClient.id)
+    : []
+  const clientMeetings = selectedClient
+    ? meetings.filter(
+        (m) =>
+          m.relatedToId === selectedClient.id ||
+          m.relatedToName.toLowerCase() === selectedClient.tradeName.toLowerCase() ||
+          m.relatedToName.toLowerCase() === selectedClient.companyName.toLowerCase()
+      )
+    : []
+  const clientContracts = selectedClient
+    ? contracts.filter(
+        (c) =>
+          c.clientId === selectedClient.id ||
+          c.clientName.toLowerCase() === selectedClient.tradeName.toLowerCase() ||
+          c.clientName.toLowerCase() === selectedClient.companyName.toLowerCase()
+      )
     : []
 
   return (
@@ -442,6 +462,87 @@ export const ClientsPage: React.FC = () => {
                       <Badge variant="gray" size="sm">{t.status.replace('_', ' ')}</Badge>
                     </div>
                   ))}
+                  {clientTasks.length === 0 && (
+                    <p className="text-xs text-zinc-400 italic">Nenhuma tarefa aberta no momento.</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Client Meetings (Escopo Módulo 02) */}
+              <div className="space-y-2">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-900 flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-brand-500" /> Reuniões & Atas ({clientMeetings.length})
+                </h3>
+                <div className="space-y-1.5">
+                  {clientMeetings.map((m) => (
+                    <div
+                      key={m.id}
+                      className="p-2.5 rounded-lg bg-white border border-zinc-200 text-xs space-y-1"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-zinc-900">{m.title}</span>
+                        <Badge variant={m.status === 'realizada' ? 'green' : m.status === 'agendada' ? 'blue' : 'gray'} size="sm">
+                          {m.status}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center gap-2 text-[11px] text-zinc-500">
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-3 h-3 text-zinc-400" />
+                          {new Date(m.dateTime).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                        {m.attendees?.length > 0 && (
+                          <span>• {m.attendees.length} participante(s)</span>
+                        )}
+                      </div>
+                      {m.agenda && (
+                        <p className="text-[11px] text-zinc-600 line-clamp-1 italic">
+                          Pauta: {m.agenda}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                  {clientMeetings.length === 0 && (
+                    <p className="text-xs text-zinc-400 italic">Nenhuma reunião registrada para esta conta.</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Client Contracts (Escopo Módulo 02) */}
+              <div className="space-y-2">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-900 flex items-center gap-1.5">
+                  <FileText className="w-3.5 h-3.5 text-brand-500" /> Contratos & Documentos ({clientContracts.length})
+                </h3>
+                <div className="space-y-1.5">
+                  {clientContracts.map((c) => (
+                    <div
+                      key={c.id}
+                      className="p-2.5 rounded-lg bg-white border border-zinc-200 text-xs space-y-1.5"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-zinc-900">{c.title}</span>
+                        <Badge variant={c.status === 'vigente' ? 'green' : c.status === 'aguardando_assinatura' ? 'yellow' : 'gray'} size="sm">
+                          {c.status.replace('_', ' ')}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center justify-between text-[11px] text-zinc-600">
+                        <span className="font-bold text-zinc-900">{formatCurrency(c.value)} ({c.billingType})</span>
+                        <span className="text-zinc-400">Até {formatDate(c.endDate)}</span>
+                      </div>
+                      {c.documentUrl && (
+                        <a
+                          href={c.documentUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-[11px] font-bold text-brand-600 hover:text-brand-700 pt-0.5"
+                        >
+                          <ExternalLink className="w-3 h-3" /> Acessar Contrato / Anexo
+                        </a>
+                      )}
+                    </div>
+                  ))}
+                  {clientContracts.length === 0 && (
+                    <p className="text-xs text-zinc-400 italic">Nenhum contrato cadastrado para esta conta.</p>
+                  )}
                 </div>
               </div>
 
