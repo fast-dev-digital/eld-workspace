@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
@@ -10,6 +10,7 @@ import {
   FinancialStatus,
 } from '@/types/workspace.types'
 import { formatCurrency, formatDate } from '@/lib/formatters'
+import { exportTransactionsCSV, exportDRECSV } from '@/lib/exportUtils'
 import { EmptyState } from '@/components/ui/EmptyState'
 import {
   DollarSign,
@@ -21,6 +22,9 @@ import {
   X,
   Edit2,
   Trash2,
+  Calendar,
+  Download,
+  FileSpreadsheet,
 } from 'lucide-react'
 
 export const FinancialPage: React.FC = () => {
@@ -30,6 +34,9 @@ export const FinancialPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('')
   const [filterType, setFilterType] = useState<string>('all')
   const [filterStatus, setFilterStatus] = useState<string>('all')
+  const [filterPeriod, setFilterPeriod] = useState<string>('all')
+  const [customStartDate, setCustomStartDate] = useState<string>('')
+  const [customEndDate, setCustomEndDate] = useState<string>('')
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -95,15 +102,15 @@ export const FinancialPage: React.FC = () => {
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault()
-    let clientName = formData.clientName
-    if (formData.clientId) {
+    let clientName: string | undefined = undefined
+    if (formData.type === 'receita' && formData.clientId) {
       const c = clients.find((item) => item.id === formData.clientId)
-      if (c) clientName = c.tradeName
+      clientName = c ? c.tradeName : ''
     }
 
     const payload = {
       ...formData,
-      clientName: formData.type === 'receita' ? clientName : undefined,
+      clientName,
     }
 
     if (editingTransaction) {
@@ -112,6 +119,12 @@ export const FinancialPage: React.FC = () => {
       addTransaction(payload)
     }
     setIsModalOpen(false)
+  }
+
+  const handleDeleteTransaction = (id: string, desc: string) => {
+    if (window.confirm(`Tem certeza que deseja excluir o lançamento "${desc}"?`)) {
+      deleteTransaction(id)
+    }
   }
 
   const markAsPaid = (transaction: FinancialTransaction) => {
@@ -123,20 +136,105 @@ export const FinancialPage: React.FC = () => {
     })
   }
 
-  // Summary Metrics
-  const totalReceitas = transactions
+  // Lista de meses identificados dinamicamente nos lançamentos
+  const availableMonths = useMemo(() => {
+    const monthsSet = new Set<string>()
+    transactions.forEach((tx) => {
+      const d = tx.competenceDate || tx.dueDate
+      if (d && d.length >= 7) {
+        monthsSet.add(d.slice(0, 7))
+      }
+    })
+    return Array.from(monthsSet).sort().reverse()
+  }, [transactions])
+
+  const formatMonthKey = (ym: string) => {
+    try {
+      const [year, month] = ym.split('-')
+      const d = new Date(Number(year), Number(month) - 1, 1)
+      const label = d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+      return label.charAt(0).toUpperCase() + label.slice(1)
+    } catch {
+      return ym
+    }
+  }
+
+  const getPeriodLabel = () => {
+    if (filterPeriod === 'all') return 'Todo o Histórico'
+    if (filterPeriod === 'this_month') return 'Mês Atual'
+    if (filterPeriod === 'last_month') return 'Mês Anterior'
+    if (filterPeriod === 'last_30_days') return 'Últimos 30 Dias'
+    if (filterPeriod === 'last_90_days') return 'Últimos 90 Dias'
+    if (filterPeriod === 'this_year') return `Ano Atual (${new Date().getFullYear()})`
+    if (filterPeriod === 'custom') {
+      return `Personalizado: ${formatDate(customStartDate)} até ${formatDate(customEndDate)}`
+    }
+    if (filterPeriod.startsWith('month:')) {
+      return formatMonthKey(filterPeriod.replace('month:', ''))
+    }
+    return filterPeriod
+  }
+
+  // Filtragem inicial das transações pelo período selecionado
+  const periodTransactions = useMemo(() => {
+    const now = new Date()
+    const currentYear = now.getFullYear()
+    const currentMonth = now.getMonth()
+
+    return transactions.filter((tx) => {
+      if (filterPeriod === 'all') return true
+      const dateStr = tx.competenceDate || tx.dueDate
+      if (!dateStr) return true
+      const txDate = new Date(dateStr + 'T00:00:00')
+
+      if (filterPeriod === 'this_month') {
+        return txDate.getFullYear() === currentYear && txDate.getMonth() === currentMonth
+      }
+      if (filterPeriod === 'last_month') {
+        const lastMonthDate = new Date(currentYear, currentMonth - 1, 1)
+        return (
+          txDate.getFullYear() === lastMonthDate.getFullYear() &&
+          txDate.getMonth() === lastMonthDate.getMonth()
+        )
+      }
+      if (filterPeriod === 'last_30_days') {
+        const past30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+        return txDate >= past30 && txDate <= now
+      }
+      if (filterPeriod === 'last_90_days') {
+        const past90 = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000)
+        return txDate >= past90 && txDate <= now
+      }
+      if (filterPeriod === 'this_year') {
+        return txDate.getFullYear() === currentYear
+      }
+      if (filterPeriod.startsWith('month:')) {
+        const targetYM = filterPeriod.replace('month:', '')
+        return dateStr.startsWith(targetYM)
+      }
+      if (filterPeriod === 'custom') {
+        if (customStartDate && dateStr < customStartDate) return false
+        if (customEndDate && dateStr > customEndDate) return false
+        return true
+      }
+      return true
+    })
+  }, [transactions, filterPeriod, customStartDate, customEndDate])
+
+  // Summary Metrics calculadas com base nas transações do período
+  const totalReceitas = periodTransactions
     .filter((t) => t.type === 'receita')
     .reduce((acc, t) => acc + t.value, 0)
 
-  const totalRecebido = transactions
+  const totalRecebido = periodTransactions
     .filter((t) => t.type === 'receita' && t.status === 'recebido')
     .reduce((acc, t) => acc + t.value, 0)
 
-  const totalReceitasPendentes = transactions
+  const totalReceitasPendentes = periodTransactions
     .filter((t) => t.type === 'receita' && t.status === 'pendente')
     .reduce((acc, t) => acc + t.value, 0)
 
-  const totalDespesas = transactions
+  const totalDespesas = periodTransactions
     .filter((t) => t.type === 'despesa')
     .reduce((acc, t) => acc + t.value, 0)
 
@@ -145,7 +243,7 @@ export const FinancialPage: React.FC = () => {
   const metaFaturamento = 35000
   const progressoMeta = Math.min(100, Math.round((totalReceitas / metaFaturamento) * 100))
 
-  const filteredTransactions = transactions.filter((t) => {
+  const filteredTransactions = periodTransactions.filter((t) => {
     const matchesSearch =
       t.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
       t.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -187,7 +285,25 @@ export const FinancialPage: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => exportTransactionsCSV(filteredTransactions, getPeriodLabel())}
+            leftIcon={<Download className="w-4 h-4" />}
+            title="Exportar lançamentos filtrados em formato CSV compatível com Excel"
+          >
+            Exportar CSV
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => exportDRECSV(periodTransactions, getPeriodLabel())}
+            leftIcon={<FileSpreadsheet className="w-4 h-4 text-emerald-600" />}
+            title="Exportar Demonstração do Resultado do Exercício consolidada"
+          >
+            DRE Gerencial
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -205,6 +321,31 @@ export const FinancialPage: React.FC = () => {
             Nova Receita
           </Button>
         </div>
+      </div>
+
+      {/* Active Period Indicator */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-white px-4 py-2.5 rounded-xl border border-zinc-200/80 shadow-2xs">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold text-zinc-600">Período de Análise:</span>
+          <Badge variant="orange" size="sm" className="gap-1 font-semibold">
+            <Calendar className="w-3 h-3" /> {getPeriodLabel()}
+          </Badge>
+          <span className="text-[11px] text-zinc-400">
+            ({periodTransactions.length} lançamentos no período)
+          </span>
+        </div>
+        {filterPeriod !== 'all' && (
+          <button
+            onClick={() => {
+              setFilterPeriod('all')
+              setCustomStartDate('')
+              setCustomEndDate('')
+            }}
+            className="text-[11px] font-semibold text-brand-600 hover:text-brand-700 self-start sm:self-auto"
+          >
+            Redefinir para todo o histórico
+          </button>
+        )}
       </div>
 
       {/* Financial Summary Cards */}
@@ -280,7 +421,7 @@ export const FinancialPage: React.FC = () => {
       </div>
 
       {/* Filter Bar */}
-      <div className="flex flex-col sm:flex-row items-center gap-3 bg-white p-3 rounded-xl border border-zinc-200 shadow-2xs">
+      <div className="flex flex-col md:flex-row items-center gap-3 bg-white p-3 rounded-xl border border-zinc-200 shadow-2xs">
         <div className="relative flex-1 w-full">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
           <input
@@ -292,7 +433,54 @@ export const FinancialPage: React.FC = () => {
           />
         </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto">
+        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+          {/* Period Selector Dropdown */}
+          <div className="flex items-center gap-1.5 bg-zinc-50 border border-zinc-200 rounded-lg px-2.5 py-1.5 shadow-2xs">
+            <Calendar className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+            <select
+              value={filterPeriod}
+              onChange={(e) => setFilterPeriod(e.target.value)}
+              className="text-xs bg-transparent border-none focus:outline-none text-zinc-800 font-medium cursor-pointer"
+            >
+              <option value="all">Todo o Histórico</option>
+              <option value="this_month">Mês Atual</option>
+              <option value="last_month">Mês Anterior</option>
+              <option value="last_30_days">Últimos 30 Dias</option>
+              <option value="last_90_days">Últimos 90 Dias</option>
+              <option value="this_year">Ano Vigente ({new Date().getFullYear()})</option>
+              {availableMonths.length > 0 && (
+                <optgroup label="Meses Específicos">
+                  {availableMonths.map((ym) => (
+                    <option key={ym} value={`month:${ym}`}>
+                      {formatMonthKey(ym)}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              <option value="custom">Personalizado...</option>
+            </select>
+          </div>
+
+          {filterPeriod === 'custom' && (
+            <div className="flex items-center gap-1.5 bg-zinc-50 border border-zinc-200 rounded-lg px-2 py-1 text-xs">
+              <input
+                type="date"
+                value={customStartDate}
+                onChange={(e) => setCustomStartDate(e.target.value)}
+                className="px-1.5 py-0.5 border border-zinc-200 rounded text-xs focus:ring-1 focus:ring-brand-500 bg-white"
+                title="Data Inicial"
+              />
+              <span className="text-zinc-400 text-[10px]">até</span>
+              <input
+                type="date"
+                value={customEndDate}
+                onChange={(e) => setCustomEndDate(e.target.value)}
+                className="px-1.5 py-0.5 border border-zinc-200 rounded text-xs focus:ring-1 focus:ring-brand-500 bg-white"
+                title="Data Final"
+              />
+            </div>
+          )}
+
           <select
             value={filterType}
             onChange={(e) => setFilterType(e.target.value)}
@@ -408,8 +596,9 @@ export const FinancialPage: React.FC = () => {
                           <Edit2 className="w-3.5 h-3.5 inline" />
                         </button>
                         <button
-                          onClick={() => deleteTransaction(t.id)}
+                          onClick={() => handleDeleteTransaction(t.id, t.description)}
                           className="p-1 text-zinc-400 hover:text-rose-600 rounded"
+                          title="Excluir Lançamento"
                         >
                           <Trash2 className="w-3.5 h-3.5 inline" />
                         </button>

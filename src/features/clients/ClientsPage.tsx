@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/Input'
 import { useWorkspace } from '@/context/WorkspaceContext'
 import { Client, ClientStatus, ClientServiceItem } from '@/types/workspace.types'
 import { formatCurrency, formatDate } from '@/lib/formatters'
+import { exportClientsCSV } from '@/lib/exportUtils'
 import { EmptyState } from '@/components/ui/EmptyState'
 import {
   Plus,
@@ -19,6 +20,7 @@ import {
   Edit2,
   Layers,
   Building2,
+  Download,
 } from 'lucide-react'
 
 export const ClientsPage: React.FC = () => {
@@ -53,7 +55,7 @@ export const ClientsPage: React.FC = () => {
   })
 
   const [serviceName, setServiceName] = useState('')
-  const [serviceValue, setServiceValue] = useState<number>(3000)
+  const [serviceValue, setServiceValue] = useState<number>(0)
 
   const openNewModal = () => {
     setEditingClient(null)
@@ -112,7 +114,7 @@ export const ClientsPage: React.FC = () => {
       monthlyValue: newMonthlyTotal,
     })
     setServiceName('')
-    setServiceValue(1500)
+    setServiceValue(0)
   }
 
   const handleRemoveService = (serviceId: string) => {
@@ -183,9 +185,20 @@ export const ClientsPage: React.FC = () => {
           </p>
         </div>
 
-        <Button variant="primary" size="sm" onClick={openNewModal} leftIcon={<Plus className="w-4 h-4" />}>
-          Novo Cliente
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => exportClientsCSV(filteredClients)}
+            leftIcon={<Download className="w-4 h-4" />}
+            title="Exportar base de clientes em formato CSV"
+          >
+            Exportar Clientes (CSV)
+          </Button>
+          <Button variant="primary" size="sm" onClick={openNewModal} leftIcon={<Plus className="w-4 h-4" />}>
+            Novo Cliente
+          </Button>
+        </div>
       </div>
 
       {/* Filter Bar */}
@@ -446,8 +459,10 @@ export const ClientsPage: React.FC = () => {
                 variant="danger"
                 size="sm"
                 onClick={() => {
-                  deleteClient(selectedClient.id)
-                  setSelectedClient(null)
+                  if (window.confirm(`Tem certeza que deseja remover o cliente "${selectedClient.tradeName}"? Essa ação não pode ser desfeita.`)) {
+                    deleteClient(selectedClient.id)
+                    setSelectedClient(null)
+                  }
                 }}
               >
                 Remover Cliente

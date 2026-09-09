@@ -3,6 +3,7 @@ import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
+import { FileUpload } from '@/components/ui/FileUpload'
 import { useWorkspace } from '@/context/WorkspaceContext'
 import { Briefing } from '@/types/workspace.types'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -16,6 +17,8 @@ import {
   Palette,
   Megaphone,
   FileSpreadsheet,
+  ExternalLink,
+  Paperclip,
 } from 'lucide-react'
 
 export const BriefingsPage: React.FC = () => {
@@ -98,8 +101,8 @@ export const BriefingsPage: React.FC = () => {
 
     const payload = {
       ...formData,
-      clientName: selectedClientObj ? selectedClientObj.tradeName : formData.clientName,
-      projectName: selectedProjObj ? selectedProjObj.name : formData.projectName,
+      clientName: formData.clientId && selectedClientObj ? selectedClientObj.tradeName : '',
+      projectName: formData.projectId && selectedProjObj ? selectedProjObj.name : '',
     }
 
     if (editingBriefing) {
@@ -218,6 +221,11 @@ export const BriefingsPage: React.FC = () => {
                       <strong className="text-zinc-900 font-semibold">Tom de Voz:</strong> {briefing.toneOfVoice}
                     </p>
                   </div>
+                  {briefing.visualReferences && (briefing.visualReferences.startsWith('http') || briefing.visualReferences.startsWith('data:')) && (
+                    <div className="flex items-center gap-1 text-[11px] text-brand-600 font-semibold pt-1 border-t border-zinc-200/60">
+                      <Paperclip className="w-3 h-3" /> Anexo / Moodboard anexado
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -289,11 +297,52 @@ export const BriefingsPage: React.FC = () => {
                   <p className="text-zinc-700 leading-relaxed">{selectedBriefing.targetAudience}</p>
                 </div>
 
-                <div className="p-3.5 bg-zinc-50 border border-zinc-200 rounded-xl space-y-1">
+                <div className="p-3.5 bg-zinc-50 border border-zinc-200 rounded-xl space-y-2">
                   <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-700 flex items-center gap-1">
-                    <Palette className="w-3.5 h-3.5 text-brand-500" /> 3. Referências Visuais & Estilo
+                    <Palette className="w-3.5 h-3.5 text-brand-500" /> 3. Referências Visuais & Moodboard
                   </span>
-                  <p className="text-zinc-700 leading-relaxed">{selectedBriefing.visualReferences}</p>
+                  {selectedBriefing.visualReferences ? (
+                    (selectedBriefing.visualReferences.startsWith('data:image/') || /\.(png|jpe?g|webp|gif|svg)(\?.*)?$/i.test(selectedBriefing.visualReferences)) ? (
+                      <div className="space-y-2 mt-1">
+                        <div
+                          onClick={() => window.open(selectedBriefing.visualReferences, '_blank')}
+                          className="relative rounded-lg overflow-hidden border border-zinc-200 bg-zinc-100 max-h-48 flex items-center justify-center cursor-pointer group"
+                          title="Clique para abrir imagem em tamanho real"
+                        >
+                          <img
+                            src={selectedBriefing.visualReferences}
+                            alt="Referência Visual"
+                            className="w-full h-full object-cover max-h-48 group-hover:scale-105 transition-transform duration-200"
+                          />
+                          <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-medium">
+                            Abrir imagem
+                          </div>
+                        </div>
+                        <a
+                          href={selectedBriefing.visualReferences}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 text-xs font-bold text-brand-600 hover:text-brand-700"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" /> Abrir imagem / moodboard original
+                        </a>
+                      </div>
+                    ) : (selectedBriefing.visualReferences.startsWith('http://') || selectedBriefing.visualReferences.startsWith('https://') || selectedBriefing.visualReferences.startsWith('data:')) ? (
+                      <a
+                        href={selectedBriefing.visualReferences}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-between p-2.5 bg-white hover:bg-brand-50 hover:border-brand-300 rounded-lg border border-zinc-200 text-xs font-bold text-brand-700 transition-colors"
+                      >
+                        <span className="truncate">Acessar Material / Documento de Referência</span>
+                        <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+                      </a>
+                    ) : (
+                      <p className="text-zinc-700 leading-relaxed">{selectedBriefing.visualReferences}</p>
+                    )
+                  ) : (
+                    <p className="text-zinc-400 italic text-xs">Nenhuma referência anexada.</p>
+                  )}
                 </div>
 
                 <div className="p-3.5 bg-zinc-50 border border-zinc-200 rounded-xl space-y-1">
@@ -337,8 +386,10 @@ export const BriefingsPage: React.FC = () => {
                 variant="danger"
                 size="sm"
                 onClick={() => {
-                  deleteBriefing(selectedBriefing.id)
-                  setSelectedBriefing(null)
+                  if (window.confirm(`Tem certeza que deseja excluir o briefing "${selectedBriefing.title}"?`)) {
+                    deleteBriefing(selectedBriefing.id)
+                    setSelectedBriefing(null)
+                  }
                 }}
               >
                 Excluir Briefing
@@ -442,21 +493,15 @@ export const BriefingsPage: React.FC = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-zinc-700 mb-1.5">
-                    3. Referências Visuais
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={formData.visualReferences}
-                    onChange={(e) =>
-                      setFormData({ ...formData, visualReferences: e.target.value })
-                    }
-                    placeholder="Estética, cores, iluminação, marcas de inspiração..."
-                    className="w-full rounded-lg border border-zinc-200 p-2 text-xs focus:ring-2 focus:ring-brand-500"
-                  />
-                </div>
+              <div className="space-y-3">
+                <FileUpload
+                  label="3. Referências Visuais & Moodboard (Arquivo ou Link)"
+                  value={formData.visualReferences}
+                  onChange={(url) => setFormData({ ...formData, visualReferences: url })}
+                  folder="briefings"
+                  accept="image/*,.pdf"
+                  helpText="Faça upload de imagem/PDF de referência ou cole link do Figma, Pinterest ou Drive"
+                />
 
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-zinc-700 mb-1.5">

@@ -97,8 +97,8 @@ export const TasksPage: React.FC = () => {
 
     const payload = {
       ...formData,
-      clientName: selectedClientObj ? selectedClientObj.tradeName : formData.clientName,
-      projectName: selectedProjObj ? selectedProjObj.name : formData.projectName,
+      clientName: formData.clientId && selectedClientObj ? selectedClientObj.tradeName : '',
+      projectName: formData.projectId && selectedProjObj ? selectedProjObj.name : '',
     }
 
     if (editingTask) {
@@ -107,6 +107,12 @@ export const TasksPage: React.FC = () => {
       addTask(payload)
     }
     setIsModalOpen(false)
+  }
+
+  const handleDeleteTask = (id: string) => {
+    if (window.confirm('Tem certeza que deseja excluir esta tarefa?')) {
+      deleteTask(id)
+    }
   }
 
   const moveTaskStage = (taskId: string, currentStatus: TaskWorkflowStatus, direction: 'next' | 'prev') => {
@@ -281,7 +287,7 @@ export const TasksPage: React.FC = () => {
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
                           <button
-                            onClick={() => deleteTask(task.id)}
+                            onClick={() => handleDeleteTask(task.id)}
                             className="p-1 text-zinc-400 hover:text-rose-600 rounded"
                             title="Excluir Tarefa"
                           >
@@ -375,8 +381,9 @@ export const TasksPage: React.FC = () => {
                         <Edit2 className="w-3.5 h-3.5 inline" />
                       </button>
                       <button
-                        onClick={() => deleteTask(task.id)}
+                        onClick={() => handleDeleteTask(task.id)}
                         className="p-1 text-zinc-400 hover:text-rose-600"
+                        title="Excluir Tarefa"
                       >
                         <Trash2 className="w-3.5 h-3.5 inline" />
                       </button>

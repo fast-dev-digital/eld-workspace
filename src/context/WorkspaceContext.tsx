@@ -284,7 +284,6 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
               setContracts(data.contracts)
               setTransactions(data.transactions)
             }
-            toast.success('🟢 Conectado com sucesso ao banco Supabase!')
           }
         })
         .finally(() => setIsLoadingCloud(false))

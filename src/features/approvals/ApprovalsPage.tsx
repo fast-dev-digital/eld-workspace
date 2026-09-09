@@ -3,6 +3,7 @@ import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
+import { FileUpload } from '@/components/ui/FileUpload'
 import { useWorkspace } from '@/context/WorkspaceContext'
 import {
   ApprovalItem,
@@ -88,10 +89,16 @@ export const ApprovalsPage: React.FC = () => {
 
     addApproval({
       ...formData,
-      clientName: selectedClientObj ? selectedClientObj.tradeName : formData.clientName,
-      projectName: selectedProjObj ? selectedProjObj.name : formData.projectName,
+      clientName: formData.clientId && selectedClientObj ? selectedClientObj.tradeName : '',
+      projectName: formData.projectId && selectedProjObj ? selectedProjObj.name : '',
     })
     setIsModalOpen(false)
+  }
+
+  const handleDeleteApproval = (id: string, title: string) => {
+    if (window.confirm(`Tem certeza que deseja excluir o item de aprovação "${title}"?`)) {
+      deleteApproval(id)
+    }
   }
 
   const handleApprove = (item: ApprovalItem) => {
@@ -229,17 +236,35 @@ export const ApprovalsPage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Asset Link */}
+                {/* Asset Link & Image Preview */}
                 {item.assetUrl && (
-                  <a
-                    href={item.assetUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center justify-between p-2.5 bg-zinc-50 hover:bg-brand-50 hover:border-brand-300 rounded-lg border border-zinc-200 text-xs font-bold text-brand-700 transition-colors"
-                  >
-                    <span className="truncate">Visualizar Peça / Layout</span>
-                    <ExternalLink className="w-3.5 h-3.5 shrink-0" />
-                  </a>
+                  <div className="space-y-2">
+                    {(item.assetUrl.startsWith('data:image/') || /\.(png|jpe?g|webp|gif|svg)(\?.*)?$/i.test(item.assetUrl)) && (
+                      <div
+                        onClick={() => window.open(item.assetUrl, '_blank')}
+                        className="relative rounded-lg overflow-hidden border border-zinc-200 bg-zinc-100 group max-h-36 flex items-center justify-center cursor-pointer"
+                        title="Clique para abrir imagem em tamanho real"
+                      >
+                        <img
+                          src={item.assetUrl}
+                          alt={item.title}
+                          className="w-full h-full object-cover max-h-36 group-hover:scale-105 transition-transform duration-200"
+                        />
+                        <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-medium">
+                          Abrir em tela cheia
+                        </div>
+                      </div>
+                    )}
+                    <a
+                      href={item.assetUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between p-2.5 bg-zinc-50 hover:bg-brand-50 hover:border-brand-300 rounded-lg border border-zinc-200 text-xs font-bold text-brand-700 transition-colors"
+                    >
+                      <span className="truncate">Visualizar Peça / Layout</span>
+                      <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+                    </a>
+                  </div>
                 )}
 
                 {/* Feedback Box */}
@@ -268,9 +293,9 @@ export const ApprovalsPage: React.FC = () => {
               {/* Actions Bottom Bar */}
               <div className="pt-3 border-t border-zinc-100 flex items-center justify-between gap-2">
                 <button
-                  onClick={() => deleteApproval(item.id)}
+                  onClick={() => handleDeleteApproval(item.id, item.title)}
                   className="p-1.5 text-zinc-400 hover:text-rose-600 rounded"
-                  title="Excluir"
+                  title="Excluir Item"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
@@ -410,11 +435,13 @@ export const ApprovalsPage: React.FC = () => {
                 </div>
               </div>
 
-              <Input
-                label="Link do Material (Figma / Drive / Canva / Loom)"
+              <FileUpload
+                label="Arquivo / Peça para Aprovação"
                 value={formData.assetUrl}
-                onChange={(e) => setFormData({ ...formData, assetUrl: e.target.value })}
-                placeholder="https://drive.google.com/..."
+                onChange={(url) => setFormData({ ...formData, assetUrl: url })}
+                folder="approvals"
+                accept="image/*,.pdf,video/mp4"
+                helpText="Faça upload da arte/vídeo ou cole o link do Figma / Drive / Canva"
               />
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">

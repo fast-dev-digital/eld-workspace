@@ -3,6 +3,7 @@ import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
+import { FileUpload } from '@/components/ui/FileUpload'
 import { useWorkspace } from '@/context/WorkspaceContext'
 import { Contract, ContractStatus } from '@/types/workspace.types'
 import { formatCurrency, formatDate } from '@/lib/formatters'
@@ -83,7 +84,7 @@ export const ContractsPage: React.FC = () => {
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault()
     const selectedClientObj = clients.find((c) => c.id === formData.clientId)
-    const clientName = selectedClientObj ? selectedClientObj.tradeName : formData.clientName
+    const clientName = formData.clientId && selectedClientObj ? selectedClientObj.tradeName : ''
 
     if (editingContract) {
       updateContract(editingContract.id, { ...formData, clientName })
@@ -91,6 +92,12 @@ export const ContractsPage: React.FC = () => {
       addContract({ ...formData, clientName })
     }
     setIsModalOpen(false)
+  }
+
+  const handleDeleteContract = (id: string, title: string) => {
+    if (window.confirm(`Tem certeza que deseja excluir o contrato "${title}"?`)) {
+      deleteContract(id)
+    }
   }
 
   const filteredContracts = contracts.filter((c) => {
@@ -260,7 +267,7 @@ export const ContractsPage: React.FC = () => {
                     <Edit2 className="w-4 h-4" />
                   </button>
                   <button
-                    onClick={() => deleteContract(contract.id)}
+                    onClick={() => handleDeleteContract(contract.id, contract.title)}
                     className="p-1 text-zinc-400 hover:text-rose-600 rounded"
                     title="Excluir Contrato"
                   >
@@ -397,11 +404,13 @@ export const ContractsPage: React.FC = () => {
                 </div>
               </div>
 
-              <Input
-                label="Link do Documento (PDF / Drive / Doc)"
+              <FileUpload
+                label="Documento do Contrato (PDF / Assinado)"
                 value={formData.documentUrl}
-                onChange={(e) => setFormData({ ...formData, documentUrl: e.target.value })}
-                placeholder="https://..."
+                onChange={(url) => setFormData({ ...formData, documentUrl: url })}
+                folder="contracts"
+                accept=".pdf,.doc,.docx"
+                helpText="Envie o arquivo PDF do contrato assinado ou cole o link do Google Drive/DocuSign"
               />
 
               <div>

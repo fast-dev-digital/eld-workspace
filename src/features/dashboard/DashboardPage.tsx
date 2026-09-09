@@ -19,6 +19,7 @@ import {
   CheckCircle2,
   Clock,
   Sparkles,
+  FileText,
 } from 'lucide-react'
 import {
   ResponsiveContainer,
@@ -283,7 +284,7 @@ export const DashboardPage: React.FC = () => {
               <h2 className="text-sm font-extrabold text-zinc-900">Evolução Financeira (Receitas x Despesas)</h2>
               <p className="text-xs text-zinc-500">Histórico dos últimos meses e projeção atual da agência</p>
             </div>
-            <Badge variant="orange">Módulo 09 Financeiro</Badge>
+            <Badge variant="orange">Fluxo Financeiro</Badge>
           </div>
 
           <div className="h-72 w-full pt-2">
@@ -319,7 +320,11 @@ export const DashboardPage: React.FC = () => {
 
             <div className="space-y-2.5">
               {urgentTasks.length > 0 && (
-                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl space-y-1">
+                <div
+                  onClick={() => navigate('/tarefas')}
+                  className="p-3 bg-rose-50 border border-rose-200 rounded-xl space-y-1 cursor-pointer hover:bg-rose-100/70 hover:shadow-xs transition-all"
+                  title="Ir para Tarefas"
+                >
                   <div className="flex items-center justify-between text-xs font-bold text-rose-900">
                     <span>{urgentTasks.length} Tarefa(s) Urgente(s)</span>
                     <Badge variant="red" size="sm">Urgente</Badge>
@@ -331,7 +336,11 @@ export const DashboardPage: React.FC = () => {
               )}
 
               {pendingApprovals.length > 0 && (
-                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-1">
+                <div
+                  onClick={() => navigate('/aprovacoes')}
+                  className="p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-1 cursor-pointer hover:bg-amber-100/70 hover:shadow-xs transition-all"
+                  title="Ir para Aprovações"
+                >
                   <div className="flex items-center justify-between text-xs font-bold text-amber-900">
                     <span>{pendingApprovals.length} Material(is) em Aprovação</span>
                     <Badge variant="yellow" size="sm">Aprovação</Badge>
@@ -343,7 +352,11 @@ export const DashboardPage: React.FC = () => {
               )}
 
               {upcomingMeetings.length > 0 && (
-                <div className="p-3 bg-zinc-50 border border-zinc-200 rounded-xl space-y-1">
+                <div
+                  onClick={() => navigate('/reunioes')}
+                  className="p-3 bg-zinc-50 border border-zinc-200 rounded-xl space-y-1 cursor-pointer hover:bg-zinc-100 hover:shadow-xs transition-all"
+                  title="Ir para Reuniões"
+                >
                   <div className="flex items-center justify-between text-xs font-bold text-zinc-900">
                     <span className="flex items-center gap-1">
                       <Calendar className="w-3.5 h-3.5 text-brand-500" /> Próxima Reunião
@@ -400,7 +413,7 @@ export const DashboardPage: React.FC = () => {
             { title: 'Briefings', to: '/briefings', icon: <Clock className="w-4 h-4" /> },
             { title: 'Aprovações & Entregas', to: '/aprovacoes', icon: <CheckCircle2 className="w-4 h-4" /> },
             { title: 'Reuniões & Atas', to: '/reunioes', icon: <Calendar className="w-4 h-4" /> },
-            { title: 'Contratos & Docs', to: '/contratos', icon: <CheckCircle2 className="w-4 h-4" /> },
+            { title: 'Contratos & Docs', to: '/contratos', icon: <FileText className="w-4 h-4" /> },
             { title: 'Financeiro', to: '/financeiro', icon: <DollarSign className="w-4 h-4" /> },
             { title: 'Configurações', to: '/configuracoes', icon: <Sparkles className="w-4 h-4" /> },
           ].map((mod) => (

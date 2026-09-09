@@ -581,7 +581,7 @@ export const SettingsPage: React.FC = () => {
                     Host do Banco de Dados
                   </span>
                   <div className="font-mono text-zinc-800 truncate font-semibold">
-                    https://ixovqxfhqsskdvfrlfzt.supabase.co
+                    {import.meta.env.VITE_SUPABASE_URL || 'Configuração Local / Standby'}
                   </div>
                 </div>
 

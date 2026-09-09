@@ -115,7 +115,7 @@ export const LoginPage: React.FC = () => {
             <span>ELD Workspace • Sistema Integrado de Operação</span>
           </div>
           <p className="text-[11px] text-zinc-600">
-            Versão 1.0 • Branco + Laranja & Preto + Laranja
+            Versão 1.0 • Sistema Integrado de Gestão
           </p>
         </div>
       </div>

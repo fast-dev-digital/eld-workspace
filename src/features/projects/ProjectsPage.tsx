@@ -90,7 +90,7 @@ export const ProjectsPage: React.FC = () => {
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault()
     const selectedClientObj = clients.find((c) => c.id === formData.clientId)
-    const clientName = selectedClientObj ? selectedClientObj.tradeName : formData.clientName
+    const clientName = formData.clientId && selectedClientObj ? selectedClientObj.tradeName : ''
 
     if (editingProject) {
       updateProject(editingProject.id, { ...formData, clientName })
@@ -98,6 +98,12 @@ export const ProjectsPage: React.FC = () => {
       addProject({ ...formData, clientName })
     }
     setIsModalOpen(false)
+  }
+
+  const handleDeleteProject = (id: string, name: string) => {
+    if (window.confirm(`Tem certeza que deseja excluir o projeto "${name}"?`)) {
+      deleteProject(id)
+    }
   }
 
   const filteredProjects = projects.filter((proj) => {
@@ -291,9 +297,9 @@ export const ProjectsPage: React.FC = () => {
                       <Edit2 className="w-4 h-4" />
                     </button>
                     <button
-                      onClick={() => deleteProject(project.id)}
+                      onClick={() => handleDeleteProject(project.id, project.name)}
                       className="p-1 text-zinc-400 hover:text-rose-600 rounded"
-                      title="Excluir"
+                      title="Excluir Projeto"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>

@@ -100,7 +100,7 @@ export const MeetingsPage: React.FC = () => {
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault()
-    let relatedName = formData.relatedToName
+    let relatedName = ''
     if (formData.relatedToType === 'cliente') {
       const c = clients.find((item) => item.id === formData.relatedToId)
       if (c) relatedName = c.tradeName
@@ -128,6 +128,12 @@ export const MeetingsPage: React.FC = () => {
       addMeeting(payload)
     }
     setIsModalOpen(false)
+  }
+
+  const handleDeleteMeeting = (id: string, title: string) => {
+    if (window.confirm(`Tem certeza que deseja excluir a ata/reunião "${title}"?`)) {
+      deleteMeeting(id)
+    }
   }
 
   const toggleStatus = (meeting: Meeting) => {
@@ -302,9 +308,9 @@ export const MeetingsPage: React.FC = () => {
                     <Edit2 className="w-4 h-4" />
                   </button>
                   <button
-                    onClick={() => deleteMeeting(meeting.id)}
+                    onClick={() => handleDeleteMeeting(meeting.id, meeting.title)}
                     className="p-1.5 text-zinc-400 hover:text-rose-600 rounded"
-                    title="Excluir"
+                    title="Excluir Reunião"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>

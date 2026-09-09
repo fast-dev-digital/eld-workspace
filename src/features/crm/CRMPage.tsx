@@ -122,6 +122,12 @@ export const CRMPage: React.FC = () => {
     setIsModalOpen(false)
   }
 
+  const handleDeleteLead = (id: string, name: string) => {
+    if (window.confirm(`Tem certeza que deseja excluir o lead "${name}"?`)) {
+      deleteLead(id)
+    }
+  }
+
   const filteredLeads = leads.filter((lead) => {
     const matchesSearch =
       lead.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -501,9 +507,9 @@ export const CRMPage: React.FC = () => {
                                 <Edit2 className="w-3.5 h-3.5" />
                               </button>
                               <button
-                                onClick={() => deleteLead(lead.id)}
+                                onClick={() => handleDeleteLead(lead.id, lead.companyName || lead.name)}
                                 className="p-1 text-zinc-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors"
-                                title="Excluir"
+                                title="Excluir Lead"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
@@ -602,8 +608,16 @@ export const CRMPage: React.FC = () => {
                       <button
                         onClick={() => openEditModal(lead)}
                         className="p-1 text-zinc-500 hover:text-zinc-900"
+                        title="Editar Lead"
                       >
                         <Edit2 className="w-3.5 h-3.5 inline" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteLead(lead.id, lead.companyName || lead.name)}
+                        className="p-1 text-zinc-400 hover:text-rose-600"
+                        title="Excluir Lead"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 inline" />
                       </button>
                     </td>
                   </tr>
