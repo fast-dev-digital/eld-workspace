@@ -13,6 +13,60 @@ import {
 
 const DEFAULT_ORG_ID = '00000000-0000-0000-0000-000000000001'
 
+/** Resultado padrão de uma mutação: erro nulo = sucesso. */
+export type MutationResult = { error: string | null }
+
+const OK: MutationResult = { error: null }
+
+/**
+ * Traduz erros do Postgres/Supabase em mensagens em português para o usuário.
+ * Cobre os casos que as constraints do schema podem disparar.
+ */
+export function friendlyDbError(err: unknown): string {
+  const e = err as { code?: string; message?: string; details?: string } | null
+  const code = e?.code
+  const msg = e?.message || ''
+
+  switch (code) {
+    case '23505': // unique_violation
+      return 'Já existe um registro com esses dados.'
+    case '23503': // foreign_key_violation
+      return 'Registro vinculado a outro item que ainda não foi sincronizado. Recarregue a página e tente novamente.'
+    case '23502': // not_null_violation
+      return 'Preencha todos os campos obrigatórios antes de salvar.'
+    case '23514': // check_violation
+      return 'Um dos valores informados não é aceito pelo sistema (status, estágio ou prioridade inválidos).'
+    case '22P02': // invalid_text_representation (ex: uuid malformado)
+      return 'Formato de dado inválido.'
+    case '42501': // insufficient_privilege (RLS)
+      return 'Você não tem permissão para esta ação.'
+    case 'PGRST301':
+      return 'Sessão expirada. Faça login novamente.'
+    default:
+      return msg
+        ? `Não foi possível salvar: ${msg}`
+        : 'Não foi possível salvar as alterações no servidor.'
+  }
+}
+
+/** Executa uma promise do supabase e normaliza para MutationResult. */
+async function run(
+  op: () => PromiseLike<{ error: { message?: string; code?: string } | null }>,
+  context: string
+): Promise<MutationResult> {
+  try {
+    const { error } = await op()
+    if (error) {
+      console.warn(`[SupabaseService] ${context}:`, error)
+      return { error: friendlyDbError(error) }
+    }
+    return OK
+  } catch (err) {
+    console.error(`[SupabaseService] Exceção em ${context}:`, err)
+    return { error: friendlyDbError(err) }
+  }
+}
+
 export const supabaseService = {
   isConfigured: isSupabaseConfigured,
   defaultOrgId: null as string | null,
@@ -267,8 +321,8 @@ export const supabaseService = {
   },
 
   // 2. Mutações de Leads
-  async saveLead(lead: Partial<Lead>, organizationId?: string) {
-    if (!isSupabaseConfigured) return
+  async saveLead(lead: Partial<Lead>, organizationId?: string): Promise<MutationResult> {
+    if (!isSupabaseConfigured) return OK
     const orgId = organizationId || (await this.getDefaultOrganizationId()) || DEFAULT_ORG_ID
     const payload: any = {
       name: lead.name,
@@ -286,28 +340,17 @@ export const supabaseService = {
       organization_id: orgId,
     }
     if (lead.id) payload.id = lead.id
-
-    try {
-      const { error } = await (supabase.from('leads') as any).upsert(payload, { onConflict: 'id' })
-      if (error) console.warn('[SupabaseService] Aviso ao salvar lead:', error.message)
-    } catch (err) {
-      console.warn('[SupabaseService] Exceção ao salvar lead:', err)
-    }
+    return run(() => (supabase.from('leads') as any).upsert(payload, { onConflict: 'id' }), 'salvar lead')
   },
 
-  async deleteLead(id: string) {
-    if (!isSupabaseConfigured) return
-    try {
-      const { error } = await (supabase.from('leads') as any).delete().eq('id', id)
-      if (error) console.warn('[SupabaseService] Erro ao deletar lead:', error.message)
-    } catch (err) {
-      console.warn('[SupabaseService] Exceção ao deletar lead:', err)
-    }
+  async deleteLead(id: string): Promise<MutationResult> {
+    if (!isSupabaseConfigured) return OK
+    return run(() => (supabase.from('leads') as any).delete().eq('id', id), 'deletar lead')
   },
 
   // 3. Mutações de Clientes
-  async saveClient(client: Partial<Client>, organizationId?: string) {
-    if (!isSupabaseConfigured) return
+  async saveClient(client: Partial<Client>, organizationId?: string): Promise<MutationResult> {
+    if (!isSupabaseConfigured) return OK
     const orgId = organizationId || (await this.getDefaultOrganizationId()) || DEFAULT_ORG_ID
     const payload: any = {
       company_name: client.companyName,
@@ -326,41 +369,39 @@ export const supabaseService = {
     }
     if (client.id) payload.id = client.id
 
-    try {
-      const { error } = await (supabase.from('clients') as any).upsert(payload, { onConflict: 'id' })
-      if (error) console.warn('[SupabaseService] Aviso ao salvar cliente:', error.message)
+    const res = await run(
+      () => (supabase.from('clients') as any).upsert(payload, { onConflict: 'id' }),
+      'salvar cliente'
+    )
+    if (res.error) return res
 
-      // Salvar serviços atrelados se existirem
-      if (client.id && client.services && client.services.length > 0) {
-        const servicesPayload = client.services.map((s) => ({
-          id: s.id,
-          client_id: client.id,
-          organization_id: orgId,
-          name: s.name,
-          value: s.value,
-          is_recurring: s.isRecurring,
-          frequency: s.frequency || 'mensal',
-        }))
-        await (supabase.from('client_services') as any).upsert(servicesPayload, { onConflict: 'id' })
-      }
-    } catch (err) {
-      console.warn('[SupabaseService] Exceção ao salvar cliente:', err)
+    // Salvar serviços atrelados se existirem
+    if (client.id && client.services && client.services.length > 0) {
+      const servicesPayload = client.services.map((s) => ({
+        id: s.id,
+        client_id: client.id,
+        organization_id: orgId,
+        name: s.name,
+        value: s.value,
+        is_recurring: s.isRecurring,
+        frequency: s.frequency || 'mensal',
+      }))
+      return run(
+        () => (supabase.from('client_services') as any).upsert(servicesPayload, { onConflict: 'id' }),
+        'salvar serviços do cliente'
+      )
     }
+    return OK
   },
 
-  async deleteClient(id: string) {
-    if (!isSupabaseConfigured) return
-    try {
-      const { error } = await (supabase.from('clients') as any).delete().eq('id', id)
-      if (error) console.warn('[SupabaseService] Erro ao deletar cliente:', error.message)
-    } catch (err) {
-      console.warn('[SupabaseService] Exceção ao deletar cliente:', err)
-    }
+  async deleteClient(id: string): Promise<MutationResult> {
+    if (!isSupabaseConfigured) return OK
+    return run(() => (supabase.from('clients') as any).delete().eq('id', id), 'deletar cliente')
   },
 
   // 4. Mutações de Projetos
-  async saveProject(project: Partial<Project>, organizationId?: string) {
-    if (!isSupabaseConfigured) return
+  async saveProject(project: Partial<Project>, organizationId?: string): Promise<MutationResult> {
+    if (!isSupabaseConfigured) return OK
     const orgId = organizationId || (await this.getDefaultOrganizationId()) || DEFAULT_ORG_ID
     const payload: any = {
       client_id: project.clientId,
@@ -379,28 +420,20 @@ export const supabaseService = {
       organization_id: orgId,
     }
     if (project.id) payload.id = project.id
-
-    try {
-      const { error } = await (supabase.from('projects') as any).upsert(payload, { onConflict: 'id' })
-      if (error) console.warn('[SupabaseService] Aviso ao salvar projeto:', error.message)
-    } catch (err) {
-      console.warn('[SupabaseService] Exceção ao salvar projeto:', err)
-    }
+    return run(
+      () => (supabase.from('projects') as any).upsert(payload, { onConflict: 'id' }),
+      'salvar projeto'
+    )
   },
 
-  async deleteProject(id: string) {
-    if (!isSupabaseConfigured) return
-    try {
-      const { error } = await (supabase.from('projects') as any).delete().eq('id', id)
-      if (error) console.warn('[SupabaseService] Erro ao deletar projeto:', error.message)
-    } catch (err) {
-      console.warn('[SupabaseService] Exceção ao deletar projeto:', err)
-    }
+  async deleteProject(id: string): Promise<MutationResult> {
+    if (!isSupabaseConfigured) return OK
+    return run(() => (supabase.from('projects') as any).delete().eq('id', id), 'deletar projeto')
   },
 
   // 5. Mutações de Tarefas
-  async saveTask(task: Partial<Task>, organizationId?: string) {
-    if (!isSupabaseConfigured) return
+  async saveTask(task: Partial<Task>, organizationId?: string): Promise<MutationResult> {
+    if (!isSupabaseConfigured) return OK
     const orgId = organizationId || (await this.getDefaultOrganizationId()) || DEFAULT_ORG_ID
     const payload: any = {
       title: task.title,
@@ -417,28 +450,17 @@ export const supabaseService = {
       organization_id: orgId,
     }
     if (task.id) payload.id = task.id
-
-    try {
-      const { error } = await (supabase.from('tasks') as any).upsert(payload, { onConflict: 'id' })
-      if (error) console.warn('[SupabaseService] Aviso ao salvar tarefa:', error.message)
-    } catch (err) {
-      console.warn('[SupabaseService] Exceção ao salvar tarefa:', err)
-    }
+    return run(() => (supabase.from('tasks') as any).upsert(payload, { onConflict: 'id' }), 'salvar tarefa')
   },
 
-  async deleteTask(id: string) {
-    if (!isSupabaseConfigured) return
-    try {
-      const { error } = await (supabase.from('tasks') as any).delete().eq('id', id)
-      if (error) console.warn('[SupabaseService] Erro ao deletar tarefa:', error.message)
-    } catch (err) {
-      console.warn('[SupabaseService] Exceção ao deletar tarefa:', err)
-    }
+  async deleteTask(id: string): Promise<MutationResult> {
+    if (!isSupabaseConfigured) return OK
+    return run(() => (supabase.from('tasks') as any).delete().eq('id', id), 'deletar tarefa')
   },
 
   // 6. Mutações de Briefings
-  async saveBriefing(briefing: Partial<Briefing>, organizationId?: string) {
-    if (!isSupabaseConfigured) return
+  async saveBriefing(briefing: Partial<Briefing>, organizationId?: string): Promise<MutationResult> {
+    if (!isSupabaseConfigured) return OK
     const orgId = organizationId || (await this.getDefaultOrganizationId()) || DEFAULT_ORG_ID
     const payload: any = {
       client_id: briefing.clientId,
@@ -458,28 +480,20 @@ export const supabaseService = {
       organization_id: orgId,
     }
     if (briefing.id) payload.id = briefing.id
-
-    try {
-      const { error } = await (supabase.from('briefings') as any).upsert(payload, { onConflict: 'id' })
-      if (error) console.warn('[SupabaseService] Aviso ao salvar briefing:', error.message)
-    } catch (err) {
-      console.warn('[SupabaseService] Exceção ao salvar briefing:', err)
-    }
+    return run(
+      () => (supabase.from('briefings') as any).upsert(payload, { onConflict: 'id' }),
+      'salvar briefing'
+    )
   },
 
-  async deleteBriefing(id: string) {
-    if (!isSupabaseConfigured) return
-    try {
-      const { error } = await (supabase.from('briefings') as any).delete().eq('id', id)
-      if (error) console.warn('[SupabaseService] Erro ao deletar briefing:', error.message)
-    } catch (err) {
-      console.warn('[SupabaseService] Exceção ao deletar briefing:', err)
-    }
+  async deleteBriefing(id: string): Promise<MutationResult> {
+    if (!isSupabaseConfigured) return OK
+    return run(() => (supabase.from('briefings') as any).delete().eq('id', id), 'deletar briefing')
   },
 
   // 7. Mutações de Aprovações
-  async saveApproval(approval: Partial<ApprovalItem>, organizationId?: string) {
-    if (!isSupabaseConfigured) return
+  async saveApproval(approval: Partial<ApprovalItem>, organizationId?: string): Promise<MutationResult> {
+    if (!isSupabaseConfigured) return OK
     const orgId = organizationId || (await this.getDefaultOrganizationId()) || DEFAULT_ORG_ID
     const payload: any = {
       title: approval.title,
@@ -497,28 +511,20 @@ export const supabaseService = {
       organization_id: orgId,
     }
     if (approval.id) payload.id = approval.id
-
-    try {
-      const { error } = await (supabase.from('approvals') as any).upsert(payload, { onConflict: 'id' })
-      if (error) console.warn('[SupabaseService] Aviso ao salvar aprovação:', error.message)
-    } catch (err) {
-      console.warn('[SupabaseService] Exceção ao salvar aprovação:', err)
-    }
+    return run(
+      () => (supabase.from('approvals') as any).upsert(payload, { onConflict: 'id' }),
+      'salvar aprovação'
+    )
   },
 
-  async deleteApproval(id: string) {
-    if (!isSupabaseConfigured) return
-    try {
-      const { error } = await (supabase.from('approvals') as any).delete().eq('id', id)
-      if (error) console.warn('[SupabaseService] Erro ao deletar aprovação:', error.message)
-    } catch (err) {
-      console.warn('[SupabaseService] Exceção ao deletar aprovação:', err)
-    }
+  async deleteApproval(id: string): Promise<MutationResult> {
+    if (!isSupabaseConfigured) return OK
+    return run(() => (supabase.from('approvals') as any).delete().eq('id', id), 'deletar aprovação')
   },
 
   // 8. Mutações de Reuniões
-  async saveMeeting(meeting: Partial<Meeting>, organizationId?: string) {
-    if (!isSupabaseConfigured) return
+  async saveMeeting(meeting: Partial<Meeting>, organizationId?: string): Promise<MutationResult> {
+    if (!isSupabaseConfigured) return OK
     const orgId = organizationId || (await this.getDefaultOrganizationId()) || DEFAULT_ORG_ID
     const payload: any = {
       title: meeting.title,
@@ -534,28 +540,20 @@ export const supabaseService = {
       organization_id: orgId,
     }
     if (meeting.id) payload.id = meeting.id
-
-    try {
-      const { error } = await (supabase.from('meetings') as any).upsert(payload, { onConflict: 'id' })
-      if (error) console.warn('[SupabaseService] Aviso ao salvar reunião:', error.message)
-    } catch (err) {
-      console.warn('[SupabaseService] Exceção ao salvar reunião:', err)
-    }
+    return run(
+      () => (supabase.from('meetings') as any).upsert(payload, { onConflict: 'id' }),
+      'salvar reunião'
+    )
   },
 
-  async deleteMeeting(id: string) {
-    if (!isSupabaseConfigured) return
-    try {
-      const { error } = await (supabase.from('meetings') as any).delete().eq('id', id)
-      if (error) console.warn('[SupabaseService] Erro ao deletar reunião:', error.message)
-    } catch (err) {
-      console.warn('[SupabaseService] Exceção ao deletar reunião:', err)
-    }
+  async deleteMeeting(id: string): Promise<MutationResult> {
+    if (!isSupabaseConfigured) return OK
+    return run(() => (supabase.from('meetings') as any).delete().eq('id', id), 'deletar reunião')
   },
 
   // 9. Mutações de Contratos
-  async saveContract(contract: Partial<Contract>, organizationId?: string) {
-    if (!isSupabaseConfigured) return
+  async saveContract(contract: Partial<Contract>, organizationId?: string): Promise<MutationResult> {
+    if (!isSupabaseConfigured) return OK
     const orgId = organizationId || (await this.getDefaultOrganizationId()) || DEFAULT_ORG_ID
     const payload: any = {
       client_id: contract.clientId,
@@ -572,28 +570,20 @@ export const supabaseService = {
       organization_id: orgId,
     }
     if (contract.id) payload.id = contract.id
-
-    try {
-      const { error } = await (supabase.from('contracts') as any).upsert(payload, { onConflict: 'id' })
-      if (error) console.warn('[SupabaseService] Aviso ao salvar contrato:', error.message)
-    } catch (err) {
-      console.warn('[SupabaseService] Exceção ao salvar contrato:', err)
-    }
+    return run(
+      () => (supabase.from('contracts') as any).upsert(payload, { onConflict: 'id' }),
+      'salvar contrato'
+    )
   },
 
-  async deleteContract(id: string) {
-    if (!isSupabaseConfigured) return
-    try {
-      const { error } = await (supabase.from('contracts') as any).delete().eq('id', id)
-      if (error) console.warn('[SupabaseService] Erro ao deletar contrato:', error.message)
-    } catch (err) {
-      console.warn('[SupabaseService] Exceção ao deletar contrato:', err)
-    }
+  async deleteContract(id: string): Promise<MutationResult> {
+    if (!isSupabaseConfigured) return OK
+    return run(() => (supabase.from('contracts') as any).delete().eq('id', id), 'deletar contrato')
   },
 
   // 10. Mutações Financeiras
-  async saveTransaction(tx: Partial<FinancialTransaction>, organizationId?: string) {
-    if (!isSupabaseConfigured) return
+  async saveTransaction(tx: Partial<FinancialTransaction>, organizationId?: string): Promise<MutationResult> {
+    if (!isSupabaseConfigured) return OK
     const orgId = organizationId || (await this.getDefaultOrganizationId()) || DEFAULT_ORG_ID
     const payload: any = {
       type: tx.type,
@@ -613,22 +603,17 @@ export const supabaseService = {
       organization_id: orgId,
     }
     if (tx.id) payload.id = tx.id
-
-    try {
-      const { error } = await (supabase.from('financial_transactions') as any).upsert(payload, { onConflict: 'id' })
-      if (error) console.warn('[SupabaseService] Aviso ao salvar transação:', error.message)
-    } catch (err) {
-      console.warn('[SupabaseService] Exceção ao salvar transação:', err)
-    }
+    return run(
+      () => (supabase.from('financial_transactions') as any).upsert(payload, { onConflict: 'id' }),
+      'salvar transação'
+    )
   },
 
-  async deleteTransaction(id: string) {
-    if (!isSupabaseConfigured) return
-    try {
-      const { error } = await (supabase.from('financial_transactions') as any).delete().eq('id', id)
-      if (error) console.warn('[SupabaseService] Erro ao deletar transação:', error.message)
-    } catch (err) {
-      console.warn('[SupabaseService] Exceção ao deletar transação:', err)
-    }
+  async deleteTransaction(id: string): Promise<MutationResult> {
+    if (!isSupabaseConfigured) return OK
+    return run(
+      () => (supabase.from('financial_transactions') as any).delete().eq('id', id),
+      'deletar transação'
+    )
   },
 }

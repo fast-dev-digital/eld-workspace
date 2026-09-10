@@ -293,6 +293,29 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   }, [])
 
   // ============================
+  // Helper: sincroniza com o Supabase e reverte o optimistic update se falhar.
+  // `rollback` restaura o estado anterior; `okMsg` só aparece se a gravação der certo.
+  // ============================
+  const syncOrRevert = async (
+    op: () => Promise<{ error: string | null }>,
+    rollback: () => void,
+    okMsg?: string
+  ) => {
+    if (!isSupabaseConfigured) {
+      if (okMsg) toast.success(okMsg)
+      return true
+    }
+    const { error } = await op()
+    if (error) {
+      rollback()
+      toast.error(error)
+      return false
+    }
+    if (okMsg) toast.success(okMsg)
+    return true
+  }
+
+  // ============================
   // LEADS (CRM)
   // ============================
   const addLead = (leadData: Omit<Lead, 'id' | 'createdAt' | 'updatedAt'>) => {
@@ -304,37 +327,44 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       updatedAt: now,
     }
     setLeads((prev) => [newLead, ...prev])
-    if (isSupabaseConfigured) {
-      supabaseService.saveLead(newLead)
-    }
-    toast.success('Lead adicionado com sucesso ao Funil!')
+    syncOrRevert(
+      () => supabaseService.saveLead(newLead),
+      () => setLeads((prev) => prev.filter((l) => l.id !== newLead.id)),
+      'Lead adicionado com sucesso ao Funil!'
+    )
   }
 
   const updateLead = (id: string, updates: Partial<Lead>) => {
+    const prevLead = leads.find((l) => l.id === id)
     setLeads((prev) =>
       prev.map((lead) => (lead.id === id ? { ...lead, ...updates, updatedAt: new Date().toISOString() } : lead))
     )
-    if (isSupabaseConfigured) {
-      supabaseService.saveLead({ id, ...updates })
-    }
-    toast.success('Lead atualizado!')
+    syncOrRevert(
+      () => supabaseService.saveLead({ id, ...updates }),
+      () => prevLead && setLeads((prev) => prev.map((l) => (l.id === id ? prevLead : l))),
+      'Lead atualizado!'
+    )
   }
 
   const updateLeadStage = (id: string, stage: CommercialStage) => {
+    const prevLead = leads.find((l) => l.id === id)
     setLeads((prev) =>
       prev.map((lead) => (lead.id === id ? { ...lead, stage, updatedAt: new Date().toISOString() } : lead))
     )
-    if (isSupabaseConfigured) {
-      supabaseService.saveLead({ id, stage })
-    }
+    syncOrRevert(
+      () => supabaseService.saveLead({ id, stage }),
+      () => prevLead && setLeads((prev) => prev.map((l) => (l.id === id ? prevLead : l)))
+    )
   }
 
   const deleteLead = (id: string) => {
+    const removed = leads.find((l) => l.id === id)
     setLeads((prev) => prev.filter((lead) => lead.id !== id))
-    if (isSupabaseConfigured) {
-      supabaseService.deleteLead(id)
-    }
-    toast.success('Lead removido do pipeline.')
+    syncOrRevert(
+      () => supabaseService.deleteLead(id),
+      () => removed && setLeads((prev) => [removed, ...prev]),
+      'Lead removido do pipeline.'
+    )
   }
 
   const convertLeadToClient = (leadId: string) => {
@@ -371,11 +401,14 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
 
     setClients((prev) => [newClient, ...prev])
-    updateLeadStage(leadId, 'cliente')
-    if (isSupabaseConfigured) {
-      supabaseService.saveClient(newClient)
-    }
-    toast.success(`Parabéns! ${newClient.tradeName} agora é oficialmente um Cliente da ELD!`)
+    syncOrRevert(
+      () => supabaseService.saveClient(newClient),
+      () => setClients((prev) => prev.filter((c) => c.id !== newClientId)),
+      `Parabéns! ${newClient.tradeName} agora é oficialmente um Cliente da ELD!`
+    ).then((ok) => {
+      // Só marca o lead como convertido se o cliente foi realmente gravado.
+      if (ok) updateLeadStage(leadId, 'cliente')
+    })
   }
 
   // ============================
@@ -388,33 +421,40 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       createdAt: new Date().toISOString(),
     }
     setClients((prev) => [newClient, ...prev])
-    if (isSupabaseConfigured) {
-      supabaseService.saveClient(newClient)
-    }
-    toast.success('Cliente cadastrado com sucesso!')
+    syncOrRevert(
+      () => supabaseService.saveClient(newClient),
+      () => setClients((prev) => prev.filter((c) => c.id !== newClient.id)),
+      'Cliente cadastrado com sucesso!'
+    )
   }
 
   const updateClient = (id: string, updates: Partial<Client>) => {
+    const prevClient = clients.find((c) => c.id === id)
     setClients((prev) => prev.map((c) => (c.id === id ? { ...c, ...updates } : c)))
-    if (isSupabaseConfigured) {
-      supabaseService.saveClient({ id, ...updates })
-    }
-    toast.success('Cadastro do cliente atualizado.')
+    syncOrRevert(
+      () => supabaseService.saveClient({ id, ...updates }),
+      () => prevClient && setClients((prev) => prev.map((c) => (c.id === id ? prevClient : c))),
+      'Cadastro do cliente atualizado.'
+    )
   }
 
   const updateClientStatus = (id: string, status: ClientStatus) => {
+    const prevClient = clients.find((c) => c.id === id)
     setClients((prev) => prev.map((c) => (c.id === id ? { ...c, status } : c)))
-    if (isSupabaseConfigured) {
-      supabaseService.saveClient({ id, status })
-    }
+    syncOrRevert(
+      () => supabaseService.saveClient({ id, status }),
+      () => prevClient && setClients((prev) => prev.map((c) => (c.id === id ? prevClient : c)))
+    )
   }
 
   const deleteClient = (id: string) => {
+    const removed = clients.find((c) => c.id === id)
     setClients((prev) => prev.filter((c) => c.id !== id))
-    if (isSupabaseConfigured) {
-      supabaseService.deleteClient(id)
-    }
-    toast.success('Cliente removido.')
+    syncOrRevert(
+      () => supabaseService.deleteClient(id),
+      () => removed && setClients((prev) => [removed, ...prev]),
+      'Cliente removido.'
+    )
   }
 
   // ============================
@@ -427,26 +467,31 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       createdAt: new Date().toISOString(),
     }
     setProjects((prev) => [newProject, ...prev])
-    if (isSupabaseConfigured) {
-      supabaseService.saveProject(newProject)
-    }
-    toast.success('Projeto criado com sucesso!')
+    syncOrRevert(
+      () => supabaseService.saveProject(newProject),
+      () => setProjects((prev) => prev.filter((p) => p.id !== newProject.id)),
+      'Projeto criado com sucesso!'
+    )
   }
 
   const updateProject = (id: string, updates: Partial<Project>) => {
+    const prevProject = projects.find((p) => p.id === id)
     setProjects((prev) => prev.map((p) => (p.id === id ? { ...p, ...updates } : p)))
-    if (isSupabaseConfigured) {
-      supabaseService.saveProject({ id, ...updates })
-    }
-    toast.success('Projeto atualizado.')
+    syncOrRevert(
+      () => supabaseService.saveProject({ id, ...updates }),
+      () => prevProject && setProjects((prev) => prev.map((p) => (p.id === id ? prevProject : p))),
+      'Projeto atualizado.'
+    )
   }
 
   const deleteProject = (id: string) => {
+    const removed = projects.find((p) => p.id === id)
     setProjects((prev) => prev.filter((p) => p.id !== id))
-    if (isSupabaseConfigured) {
-      supabaseService.deleteProject(id)
-    }
-    toast.success('Projeto excluído.')
+    syncOrRevert(
+      () => supabaseService.deleteProject(id),
+      () => removed && setProjects((prev) => [removed, ...prev]),
+      'Projeto excluído.'
+    )
   }
 
   // ============================
@@ -459,21 +504,25 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       createdAt: new Date().toISOString(),
     }
     setTasks((prev) => [newTask, ...prev])
-    if (isSupabaseConfigured) {
-      supabaseService.saveTask(newTask)
-    }
-    toast.success('Tarefa criada com sucesso!')
+    syncOrRevert(
+      () => supabaseService.saveTask(newTask),
+      () => setTasks((prev) => prev.filter((t) => t.id !== newTask.id)),
+      'Tarefa criada com sucesso!'
+    )
   }
 
   const updateTask = (id: string, updates: Partial<Task>) => {
+    const prevTask = tasks.find((t) => t.id === id)
     setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...updates } : t)))
-    if (isSupabaseConfigured) {
-      supabaseService.saveTask({ id, ...updates })
-    }
-    toast.success('Tarefa atualizada.')
+    syncOrRevert(
+      () => supabaseService.saveTask({ id, ...updates }),
+      () => prevTask && setTasks((prev) => prev.map((t) => (t.id === id ? prevTask : t))),
+      'Tarefa atualizada.'
+    )
   }
 
   const updateTaskStatus = (id: string, status: TaskWorkflowStatus) => {
+    const prevTask = tasks.find((t) => t.id === id)
     setTasks((prev) =>
       prev.map((t) =>
         t.id === id
@@ -485,17 +534,20 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           : t
       )
     )
-    if (isSupabaseConfigured) {
-      supabaseService.saveTask({ id, status })
-    }
+    syncOrRevert(
+      () => supabaseService.saveTask({ id, status }),
+      () => prevTask && setTasks((prev) => prev.map((t) => (t.id === id ? prevTask : t)))
+    )
   }
 
   const deleteTask = (id: string) => {
+    const removed = tasks.find((t) => t.id === id)
     setTasks((prev) => prev.filter((t) => t.id !== id))
-    if (isSupabaseConfigured) {
-      supabaseService.deleteTask(id)
-    }
-    toast.success('Tarefa removida.')
+    syncOrRevert(
+      () => supabaseService.deleteTask(id),
+      () => removed && setTasks((prev) => [removed, ...prev]),
+      'Tarefa removida.'
+    )
   }
 
   // ============================
@@ -510,28 +562,33 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       updatedAt: now,
     }
     setBriefings((prev) => [newBriefing, ...prev])
-    if (isSupabaseConfigured) {
-      supabaseService.saveBriefing(newBriefing)
-    }
-    toast.success('Briefing estruturado registrado com sucesso!')
+    syncOrRevert(
+      () => supabaseService.saveBriefing(newBriefing),
+      () => setBriefings((prev) => prev.filter((b) => b.id !== newBriefing.id)),
+      'Briefing estruturado registrado com sucesso!'
+    )
   }
 
   const updateBriefing = (id: string, updates: Partial<Briefing>) => {
+    const prevBriefing = briefings.find((b) => b.id === id)
     setBriefings((prev) =>
       prev.map((b) => (b.id === id ? { ...b, ...updates, updatedAt: new Date().toISOString() } : b))
     )
-    if (isSupabaseConfigured) {
-      supabaseService.saveBriefing({ id, ...updates })
-    }
-    toast.success('Briefing atualizado.')
+    syncOrRevert(
+      () => supabaseService.saveBriefing({ id, ...updates }),
+      () => prevBriefing && setBriefings((prev) => prev.map((b) => (b.id === id ? prevBriefing : b))),
+      'Briefing atualizado.'
+    )
   }
 
   const deleteBriefing = (id: string) => {
+    const removed = briefings.find((b) => b.id === id)
     setBriefings((prev) => prev.filter((b) => b.id !== id))
-    if (isSupabaseConfigured) {
-      supabaseService.deleteBriefing(id)
-    }
-    toast.success('Briefing removido.')
+    syncOrRevert(
+      () => supabaseService.deleteBriefing(id),
+      () => removed && setBriefings((prev) => [removed, ...prev]),
+      'Briefing removido.'
+    )
   }
 
   // ============================
@@ -546,13 +603,15 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       updatedAt: now,
     }
     setApprovals((prev) => [newApproval, ...prev])
-    if (isSupabaseConfigured) {
-      supabaseService.saveApproval(newApproval)
-    }
-    toast.success('Material enviado para aprovação!')
+    syncOrRevert(
+      () => supabaseService.saveApproval(newApproval),
+      () => setApprovals((prev) => prev.filter((a) => a.id !== newApproval.id)),
+      'Material enviado para aprovação!'
+    )
   }
 
   const updateApprovalStatus = (id: string, status: ApprovalStatus, feedback?: string) => {
+    const prevApproval = approvals.find((a) => a.id === id)
     setApprovals((prev) =>
       prev.map((a) =>
         a.id === id
@@ -565,22 +624,27 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           : a
       )
     )
-    if (isSupabaseConfigured) {
-      supabaseService.saveApproval({ id, status, feedback })
-    }
-    if (status === 'aprovado') {
-      toast.success('Material aprovado!')
-    } else if (status === 'ajustes_solicitados') {
-      toast.warning('Ajustes solicitados e registrados no histórico.')
-    }
+    syncOrRevert(
+      () => supabaseService.saveApproval({ id, status, feedback }),
+      () => prevApproval && setApprovals((prev) => prev.map((a) => (a.id === id ? prevApproval : a)))
+    ).then((ok) => {
+      if (!ok) return
+      if (status === 'aprovado') {
+        toast.success('Material aprovado!')
+      } else if (status === 'ajustes_solicitados') {
+        toast.warning('Ajustes solicitados e registrados no histórico.')
+      }
+    })
   }
 
   const deleteApproval = (id: string) => {
+    const removed = approvals.find((a) => a.id === id)
     setApprovals((prev) => prev.filter((a) => a.id !== id))
-    if (isSupabaseConfigured) {
-      supabaseService.deleteApproval(id)
-    }
-    toast.success('Material removido do fluxo.')
+    syncOrRevert(
+      () => supabaseService.deleteApproval(id),
+      () => removed && setApprovals((prev) => [removed, ...prev]),
+      'Material removido do fluxo.'
+    )
   }
 
   // ============================
@@ -593,26 +657,31 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       createdAt: new Date().toISOString(),
     }
     setMeetings((prev) => [newMeeting, ...prev])
-    if (isSupabaseConfigured) {
-      supabaseService.saveMeeting(newMeeting)
-    }
-    toast.success('Reunião agendada com sucesso!')
+    syncOrRevert(
+      () => supabaseService.saveMeeting(newMeeting),
+      () => setMeetings((prev) => prev.filter((m) => m.id !== newMeeting.id)),
+      'Reunião agendada com sucesso!'
+    )
   }
 
   const updateMeeting = (id: string, updates: Partial<Meeting>) => {
+    const prevMeeting = meetings.find((m) => m.id === id)
     setMeetings((prev) => prev.map((m) => (m.id === id ? { ...m, ...updates } : m)))
-    if (isSupabaseConfigured) {
-      supabaseService.saveMeeting({ id, ...updates })
-    }
-    toast.success('Reunião / Ata atualizada.')
+    syncOrRevert(
+      () => supabaseService.saveMeeting({ id, ...updates }),
+      () => prevMeeting && setMeetings((prev) => prev.map((m) => (m.id === id ? prevMeeting : m))),
+      'Reunião / Ata atualizada.'
+    )
   }
 
   const deleteMeeting = (id: string) => {
+    const removed = meetings.find((m) => m.id === id)
     setMeetings((prev) => prev.filter((m) => m.id !== id))
-    if (isSupabaseConfigured) {
-      supabaseService.deleteMeeting(id)
-    }
-    toast.success('Reunião excluída.')
+    syncOrRevert(
+      () => supabaseService.deleteMeeting(id),
+      () => removed && setMeetings((prev) => [removed, ...prev]),
+      'Reunião excluída.'
+    )
   }
 
   // ============================
@@ -625,26 +694,31 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       createdAt: new Date().toISOString(),
     }
     setContracts((prev) => [newContract, ...prev])
-    if (isSupabaseConfigured) {
-      supabaseService.saveContract(newContract)
-    }
-    toast.success('Contrato cadastrado com sucesso!')
+    syncOrRevert(
+      () => supabaseService.saveContract(newContract),
+      () => setContracts((prev) => prev.filter((c) => c.id !== newContract.id)),
+      'Contrato cadastrado com sucesso!'
+    )
   }
 
   const updateContract = (id: string, updates: Partial<Contract>) => {
+    const prevContract = contracts.find((c) => c.id === id)
     setContracts((prev) => prev.map((c) => (c.id === id ? { ...c, ...updates } : c)))
-    if (isSupabaseConfigured) {
-      supabaseService.saveContract({ id, ...updates })
-    }
-    toast.success('Contrato atualizado.')
+    syncOrRevert(
+      () => supabaseService.saveContract({ id, ...updates }),
+      () => prevContract && setContracts((prev) => prev.map((c) => (c.id === id ? prevContract : c))),
+      'Contrato atualizado.'
+    )
   }
 
   const deleteContract = (id: string) => {
+    const removed = contracts.find((c) => c.id === id)
     setContracts((prev) => prev.filter((c) => c.id !== id))
-    if (isSupabaseConfigured) {
-      supabaseService.deleteContract(id)
-    }
-    toast.success('Contrato removido.')
+    syncOrRevert(
+      () => supabaseService.deleteContract(id),
+      () => removed && setContracts((prev) => [removed, ...prev]),
+      'Contrato removido.'
+    )
   }
 
   // ============================
@@ -657,26 +731,31 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       createdAt: new Date().toISOString(),
     }
     setTransactions((prev) => [newTx, ...prev])
-    if (isSupabaseConfigured) {
-      supabaseService.saveTransaction(newTx)
-    }
-    toast.success('Lançamento financeiro registrado com sucesso!')
+    syncOrRevert(
+      () => supabaseService.saveTransaction(newTx),
+      () => setTransactions((prev) => prev.filter((t) => t.id !== newTx.id)),
+      'Lançamento financeiro registrado com sucesso!'
+    )
   }
 
   const updateTransaction = (id: string, updates: Partial<FinancialTransaction>) => {
+    const prevTx = transactions.find((t) => t.id === id)
     setTransactions((prev) => prev.map((t) => (t.id === id ? { ...t, ...updates } : t)))
-    if (isSupabaseConfigured) {
-      supabaseService.saveTransaction({ id, ...updates })
-    }
-    toast.success('Lançamento financeiro atualizado.')
+    syncOrRevert(
+      () => supabaseService.saveTransaction({ id, ...updates }),
+      () => prevTx && setTransactions((prev) => prev.map((t) => (t.id === id ? prevTx : t))),
+      'Lançamento financeiro atualizado.'
+    )
   }
 
   const deleteTransaction = (id: string) => {
+    const removed = transactions.find((t) => t.id === id)
     setTransactions((prev) => prev.filter((t) => t.id !== id))
-    if (isSupabaseConfigured) {
-      supabaseService.deleteTransaction(id)
-    }
-    toast.success('Lançamento financeiro removido.')
+    syncOrRevert(
+      () => supabaseService.deleteTransaction(id),
+      () => removed && setTransactions((prev) => [removed, ...prev]),
+      'Lançamento financeiro removido.'
+    )
   }
 
   // Team Management
