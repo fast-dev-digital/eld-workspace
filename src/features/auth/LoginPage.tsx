@@ -102,7 +102,7 @@ export const LoginPage: React.FC = () => {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               leftIcon={<Mail className="w-4 h-4" />}
-              className="bg-zinc-800/50 border-zinc-700 text-white placeholder-zinc-500"
+              className="bg-zinc-800/50 border-zinc-700 !text-white placeholder-zinc-500"
             />
 
             <Input
@@ -112,7 +112,7 @@ export const LoginPage: React.FC = () => {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               leftIcon={<Lock className="w-4 h-4" />}
-              className="bg-zinc-800/50 border-zinc-700 text-white placeholder-zinc-500"
+              className="bg-zinc-800/50 border-zinc-700 !text-white placeholder-zinc-500"
             />
 
             <Button

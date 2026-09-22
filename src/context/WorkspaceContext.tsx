@@ -216,8 +216,8 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     : localUser
 
   const isAuthenticated = isSupabaseConfigured ? Boolean(auth.session) : true
-  const [isFetchingData, setIsFetchingData] = useState<boolean>(isSupabaseConfigured)
-  const isLoadingCloud = isSupabaseConfigured ? auth.isLoading || isFetchingData : false
+  const [isFetchingData, setIsFetchingData] = useState<boolean>(false)
+  const isLoadingCloud = isSupabaseConfigured ? auth.isLoading || (isAuthenticated && isFetchingData) : false
 
   const setCurrentUser = (user: UserProfile) => {
     setLocalUserState(user)
