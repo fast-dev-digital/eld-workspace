@@ -9,17 +9,13 @@ import { useWorkspace, UserRole, TeamMember } from '@/context/WorkspaceContext'
 import {
   Building2,
   Users,
-  Database,
   Palette,
-  Shield,
   Plus,
   Trash2,
   Edit2,
   X,
   Copy,
-  RotateCcw,
   Sparkles,
-  CloudCheck,
   CheckCircle2,
   Zap,
   Globe,
@@ -30,7 +26,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 
-type SettingsTab = 'geral' | 'equipe' | 'database' | 'branding'
+type SettingsTab = 'geral' | 'equipe' | 'branding'
 
 export const SettingsPage: React.FC = () => {
   const {
@@ -43,7 +39,6 @@ export const SettingsPage: React.FC = () => {
     deleteTeamMember,
     agencySettings,
     updateAgencySettings,
-    resetToDefaultData,
   } = useWorkspace()
 
   const [activeTab, setActiveTab] = useState<SettingsTab>('geral')
@@ -68,8 +63,6 @@ export const SettingsPage: React.FC = () => {
     department: '',
     phone: '',
   })
-
-  const [isTestingCloud, setIsTestingCloud] = useState(false)
 
   // Save Agency Settings
   const handleSaveAgency = (e: React.FormEvent) => {
@@ -136,18 +129,6 @@ export const SettingsPage: React.FC = () => {
   const handleCopyColor = (colorHex: string, label: string) => {
     navigator.clipboard.writeText(colorHex)
     toast.success(`Código ${label} (${colorHex}) copiado!`)
-  }
-
-  const handleTestCloudConnection = () => {
-    setIsTestingCloud(true)
-    setTimeout(() => {
-      setIsTestingCloud(false)
-      if (!isStandbyMode) {
-        toast.success('Conexão Supabase em Nuvem 100% operacional!')
-      } else {
-        toast.info('Workspace operando em Modo Standby (armazenamento local).')
-      }
-    }, 800)
   }
 
   const getRoleBadge = (role: UserRole) => {
@@ -226,18 +207,6 @@ export const SettingsPage: React.FC = () => {
               {teamMembers.length}
             </span>
           )}
-        </button>
-
-        <button
-          onClick={() => setActiveTab('database')}
-          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition-all whitespace-nowrap ${
-            activeTab === 'database'
-              ? 'border-brand-500 text-brand-600 bg-brand-50/40 rounded-t-lg'
-              : 'border-transparent text-zinc-500 hover:text-zinc-900 hover:border-zinc-300'
-          }`}
-        >
-          <Database className="w-4 h-4" />
-          Banco de Dados & Nuvem
         </button>
 
         <button
@@ -567,122 +536,7 @@ export const SettingsPage: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 3: BANCO DE DADOS & NUVEM */}
-      {activeTab === 'database' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-6">
-            <Card className="p-6 space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-100 pb-4">
-                <div className="flex items-center gap-3">
-                  <div className={`p-2.5 rounded-xl ${isStandbyMode ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                    {isStandbyMode ? <Zap className="w-5 h-5" /> : <CloudCheck className="w-5 h-5" />}
-                  </div>
-                  <div>
-                    <h2 className="text-sm font-bold text-zinc-900">
-                      {isStandbyMode ? 'Modo Standby (Armazenamento Local)' : 'Supabase Nuvem Conectado & Ativo'}
-                    </h2>
-                    <p className="text-xs text-zinc-500">
-                      {isStandbyMode
-                        ? 'Os dados são salvos localmente com segurança no navegador atual.'
-                        : 'Sincronização em nuvem ativa com PostgreSQL gerenciado.'}
-                    </p>
-                  </div>
-                </div>
-
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleTestCloudConnection}
-                  disabled={isTestingCloud}
-                >
-                  {isTestingCloud ? 'Verificando...' : 'Testar Conexão'}
-                </Button>
-              </div>
-
-              {/* Technical Details Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-                <div className="p-3.5 bg-zinc-50 rounded-xl border border-zinc-200 space-y-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">
-                    Host do Banco de Dados
-                  </span>
-                  <div className="font-mono text-zinc-800 truncate font-semibold">
-                    {import.meta.env.VITE_SUPABASE_URL || 'Configuração Local / Standby'}
-                  </div>
-                </div>
-
-                <div className="p-3.5 bg-zinc-50 rounded-xl border border-zinc-200 space-y-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">
-                    Módulos & Tabelas Sincronizadas
-                  </span>
-                  <div className="font-semibold text-emerald-700 flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                    <span>10 de 10 Tabelas Operacionais</span>
-                  </div>
-                </div>
-
-                <div className="p-3.5 bg-zinc-50 rounded-xl border border-zinc-200 space-y-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">
-                    Segurança & Acesso
-                  </span>
-                  <div className="font-semibold text-zinc-800">
-                    Políticas RLS (Row Level Security) Ativas
-                  </div>
-                </div>
-
-                <div className="p-3.5 bg-zinc-50 rounded-xl border border-zinc-200 space-y-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">
-                    Padrão de Chaves
-                  </span>
-                  <div className="font-semibold text-zinc-800">
-                    UUID v4 RFC 4122 (100% Compatível)
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-4 rounded-xl bg-blue-50/60 border border-blue-200/80 text-xs text-blue-900 space-y-1">
-                <div className="font-bold flex items-center gap-1.5">
-                  <Shield className="w-4 h-4 text-blue-600" /> Alta Disponibilidade & Redundância
-                </div>
-                <p className="text-[11px] text-blue-800 leading-relaxed">
-                  Mesmo em caso de instabilidade na conexão com a internet, o ELD Workspace mantém uma cópia em cache no seu navegador, sincronizando assim que o sinal for restabelecido.
-                </p>
-              </div>
-            </Card>
-          </div>
-
-          {/* Maintenance & Dangerous Actions */}
-          <div className="space-y-6">
-            <Card className="p-5 space-y-4 border-zinc-200">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-900 flex items-center gap-1.5">
-                <RotateCcw className="w-4 h-4 text-zinc-600" /> Manutenção do Workspace
-              </h3>
-              <p className="text-xs text-zinc-500 leading-relaxed">
-                Utilize esta opção caso queira limpar o cache local do seu navegador para reiniciar os testes do zero.
-              </p>
-
-              <div className="p-3 bg-rose-50 rounded-xl border border-rose-200 text-[11px] text-rose-800 space-y-1">
-                <strong>Atenção:</strong> Esta ação limpa o armazenamento do navegador. Seus dados cadastrados na nuvem Supabase não serão afetados.
-              </div>
-
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full justify-center text-rose-700 border-rose-300 hover:bg-rose-50 hover:border-rose-400"
-                leftIcon={<RotateCcw className="w-3.5 h-3.5 text-rose-600" />}
-                onClick={() => {
-                  if (confirm('Deseja realmente limpar todos os dados do cache local do navegador?')) {
-                    resetToDefaultData()
-                  }
-                }}
-              >
-                Limpar Cache Local (Reset)
-              </Button>
-            </Card>
-          </div>
-        </div>
-      )}
-
-      {/* TAB 4: IDENTIDADE & MARCA */}
+      {/* TAB 3: IDENTIDADE & MARCA */}
       {activeTab === 'branding' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
