@@ -74,18 +74,51 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    let newUserId: string;
+
     const { data: invited, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(email.trim(), {
       data: { full_name: name.trim() },
     });
 
     if (inviteError || !invited?.user) {
-      return new Response(JSON.stringify({ error: inviteError?.message || "Não foi possível convidar o colaborador." }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+      const alreadyExists = /already.*registered|already.*exists/i.test(inviteError?.message || "");
 
-    const newUserId = invited.user.id;
+      if (!alreadyExists) {
+        return new Response(JSON.stringify({ error: inviteError?.message || "Não foi possível convidar o colaborador." }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Usuário já existe no sistema (ex.: convite anterior). Reaproveita a conta em vez de falhar.
+      const { data: existingList, error: listError } = await adminClient.auth.admin.listUsers();
+      const existingUser = existingList?.users.find((u) => u.email?.toLowerCase() === email.trim().toLowerCase());
+
+      if (listError || !existingUser) {
+        return new Response(JSON.stringify({ error: "Este e-mail já está cadastrado, mas não foi possível localizá-lo." }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { data: existingMembership } = await adminClient
+        .from("organization_members")
+        .select("id")
+        .eq("organization_id", organizationId)
+        .eq("user_id", existingUser.id)
+        .maybeSingle();
+
+      if (existingMembership) {
+        return new Response(JSON.stringify({ error: "Este colaborador já faz parte da equipe." }), {
+          status: 409,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      newUserId = existingUser.id;
+    } else {
+      newUserId = invited.user.id;
+    }
 
     const { error: profileError } = await adminClient
       .from("profiles")

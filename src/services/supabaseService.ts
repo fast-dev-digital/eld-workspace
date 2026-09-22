@@ -660,7 +660,17 @@ export const supabaseService = {
     })
 
     if (error) {
-      const message = (data as { error?: string } | null)?.error || error.message
+      // FunctionsHttpError não popula `data`; o corpo JSON de erro vem em error.context (Response bruta)
+      const context = (error as { context?: Response }).context
+      let message = error.message
+      if (context && typeof context.json === 'function') {
+        try {
+          const body = await context.json()
+          if (body?.error) message = body.error
+        } catch {
+          // Mantém a mensagem genérica se o corpo não for JSON
+        }
+      }
       return { error: message }
     }
 
