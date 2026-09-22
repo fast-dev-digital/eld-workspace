@@ -49,6 +49,14 @@ export interface TeamMember {
   createdAt: string
 }
 
+export interface InviteTeamMemberInput {
+  name: string
+  email: string
+  role: UserRole
+  department: string
+  phone?: string
+}
+
 export interface AgencySettings {
   name: string
   tradeName: string
@@ -73,7 +81,7 @@ interface WorkspaceContextType {
 
   // Team
   teamMembers: TeamMember[]
-  addTeamMember: (member: Omit<TeamMember, 'id' | 'createdAt'>) => void
+  inviteTeamMember: (member: InviteTeamMemberInput) => Promise<boolean>
   updateTeamMember: (id: string, updates: Partial<TeamMember>) => void
   deleteTeamMember: (id: string) => void
 
@@ -313,6 +321,16 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         .finally(() => setIsFetchingData(false))
     }
   }, [isAuthenticated])
+
+  const refreshTeamMembers = async () => {
+    if (!isSupabaseConfigured || !auth.organizationId) return
+    const members = await supabaseService.fetchTeamMembers(auth.organizationId)
+    setTeamMembers(members)
+  }
+
+  useEffect(() => {
+    refreshTeamMembers()
+  }, [auth.organizationId])
 
   // ============================
   // Helper: sincroniza com o Supabase e reverte o optimistic update se falhar.
@@ -781,24 +799,77 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   }
 
   // Team Management
-  const addTeamMember = (member: Omit<TeamMember, 'id' | 'createdAt'>) => {
-    const newMember: TeamMember = {
-      ...member,
-      id: crypto.randomUUID(),
-      createdAt: new Date().toISOString(),
+  const inviteTeamMember = async (member: InviteTeamMemberInput): Promise<boolean> => {
+    if (!isSupabaseConfigured) {
+      const newMember: TeamMember = {
+        ...member,
+        id: crypto.randomUUID(),
+        createdAt: new Date().toISOString(),
+      }
+      setTeamMembers((prev) => [newMember, ...prev])
+      toast.success(`Colaborador ${member.name} adicionado à equipe!`)
+      return true
     }
-    setTeamMembers((prev) => [newMember, ...prev])
-    toast.success(`Colaborador ${member.name} adicionado à equipe!`)
+
+    if (!auth.organizationId) {
+      toast.error('Organização não identificada. Recarregue a página e tente novamente.')
+      return false
+    }
+
+    const { error } = await supabaseService.inviteTeamMember({
+      ...member,
+      organizationId: auth.organizationId,
+    })
+
+    if (error) {
+      toast.error(error)
+      return false
+    }
+
+    toast.success(`Convite enviado para ${member.email}!`)
+    await refreshTeamMembers()
+    return true
   }
 
-  const updateTeamMember = (id: string, updates: Partial<TeamMember>) => {
-    setTeamMembers((prev) => prev.map((m) => (m.id === id ? { ...m, ...updates } : m)))
+  const updateTeamMember = async (id: string, updates: Partial<TeamMember>) => {
+    if (!isSupabaseConfigured) {
+      setTeamMembers((prev) => prev.map((m) => (m.id === id ? { ...m, ...updates } : m)))
+      toast.success('Membro atualizado!')
+      return
+    }
+
+    const { error } = await supabaseService.updateTeamMemberProfile(id, {
+      name: updates.name,
+      department: updates.department,
+      phone: updates.phone,
+    })
+
+    if (error) {
+      toast.error(error)
+      return
+    }
+
     toast.success('Membro atualizado!')
+    await refreshTeamMembers()
   }
 
-  const deleteTeamMember = (id: string) => {
-    setTeamMembers((prev) => prev.filter((m) => m.id !== id))
+  const deleteTeamMember = async (id: string) => {
+    if (!isSupabaseConfigured) {
+      setTeamMembers((prev) => prev.filter((m) => m.id !== id))
+      toast.success('Membro removido da equipe!')
+      return
+    }
+
+    if (!auth.organizationId) return
+
+    const { error } = await supabaseService.removeTeamMember(id, auth.organizationId)
+    if (error) {
+      toast.error(error)
+      return
+    }
+
     toast.success('Membro removido da equipe!')
+    await refreshTeamMembers()
   }
 
   // Agency Settings
@@ -849,7 +920,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         isAuthenticated,
         logout,
         teamMembers,
-        addTeamMember,
+        inviteTeamMember,
         updateTeamMember,
         deleteTeamMember,
         agencySettings,

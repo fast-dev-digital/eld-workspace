@@ -616,4 +616,88 @@ export const supabaseService = {
       'deletar transação'
     )
   },
+
+  // ============================
+  // TEAM MEMBERS (organization_members + profiles)
+  // ============================
+  async fetchTeamMembers(organizationId: string) {
+    const { data, error } = await (supabase.from('organization_members') as any)
+      .select('id, role, created_at, profiles(id, full_name, phone, department)')
+      .eq('organization_id', organizationId)
+
+    if (error || !data) {
+      console.warn('[SupabaseService] buscar equipe:', error)
+      return []
+    }
+
+    return data.map((m: any) => ({
+      id: m.profiles?.id || m.id,
+      name: m.profiles?.full_name || 'Sem nome',
+      email: '',
+      role: m.role,
+      department: m.profiles?.department || '',
+      phone: m.profiles?.phone || undefined,
+      createdAt: m.created_at,
+    }))
+  },
+
+  async inviteTeamMember(input: {
+    name: string
+    email: string
+    role: string
+    department?: string
+    phone?: string
+    organizationId: string
+  }): Promise<{ error: string | null }> {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
+
+    if (!session) return { error: 'Sessão expirada. Faça login novamente.' }
+
+    const { data, error } = await supabase.functions.invoke('invite-team-member', {
+      body: input,
+    })
+
+    if (error) {
+      const message = (data as { error?: string } | null)?.error || error.message
+      return { error: message }
+    }
+
+    if (data?.error) {
+      return { error: data.error }
+    }
+
+    return { error: null }
+  },
+
+  async updateTeamMemberProfile(
+    userId: string,
+    updates: { name?: string; department?: string; phone?: string }
+  ): Promise<MutationResult> {
+    if (!isSupabaseConfigured) return OK
+    return run(
+      () =>
+        (supabase.from('profiles') as any)
+          .update({
+            ...(updates.name !== undefined ? { full_name: updates.name } : {}),
+            ...(updates.department !== undefined ? { department: updates.department } : {}),
+            ...(updates.phone !== undefined ? { phone: updates.phone } : {}),
+          })
+          .eq('id', userId),
+      'atualizar colaborador'
+    )
+  },
+
+  async removeTeamMember(userId: string, organizationId: string): Promise<MutationResult> {
+    if (!isSupabaseConfigured) return OK
+    return run(
+      () =>
+        (supabase.from('organization_members') as any)
+          .delete()
+          .eq('user_id', userId)
+          .eq('organization_id', organizationId),
+      'remover colaborador'
+    )
+  },
 }

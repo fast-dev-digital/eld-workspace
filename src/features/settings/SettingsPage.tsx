@@ -34,7 +34,7 @@ export const SettingsPage: React.FC = () => {
     setCurrentUser,
     isStandbyMode,
     teamMembers,
-    addTeamMember,
+    inviteTeamMember,
     updateTeamMember,
     deleteTeamMember,
     agencySettings,
@@ -63,6 +63,7 @@ export const SettingsPage: React.FC = () => {
     department: '',
     phone: '',
   })
+  const [isSavingMember, setIsSavingMember] = useState(false)
 
   // Save Agency Settings
   const handleSaveAgency = (e: React.FormEvent) => {
@@ -111,19 +112,25 @@ export const SettingsPage: React.FC = () => {
     setIsMemberModalOpen(true)
   }
 
-  const handleSaveMember = (e: React.FormEvent) => {
+  const handleSaveMember = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!memberForm.name.trim() || !memberForm.email.trim()) {
       toast.error('Informe o nome e o e-mail do colaborador.')
       return
     }
 
-    if (editingMember) {
-      updateTeamMember(editingMember.id, memberForm)
-    } else {
-      addTeamMember(memberForm)
+    setIsSavingMember(true)
+    try {
+      if (editingMember) {
+        await updateTeamMember(editingMember.id, memberForm)
+        setIsMemberModalOpen(false)
+      } else {
+        const ok = await inviteTeamMember(memberForm)
+        if (ok) setIsMemberModalOpen(false)
+      }
+    } finally {
+      setIsSavingMember(false)
     }
-    setIsMemberModalOpen(false)
   }
 
   const handleCopyColor = (colorHex: string, label: string) => {
@@ -722,7 +729,7 @@ export const SettingsPage: React.FC = () => {
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-zinc-200 space-y-4">
             <div className="flex items-center justify-between border-b border-zinc-200 pb-3">
               <h2 className="text-base font-extrabold text-zinc-900">
-                {editingMember ? 'Editar Colaborador' : 'Novo Colaborador da Equipe'}
+                {editingMember ? 'Editar Colaborador' : 'Convidar Colaborador'}
               </h2>
               <button
                 onClick={() => setIsMemberModalOpen(false)}
@@ -745,9 +752,15 @@ export const SettingsPage: React.FC = () => {
                 label="E-mail Corporativo"
                 type="email"
                 required
+                disabled={!!editingMember}
                 value={memberForm.email}
                 onChange={(e) => setMemberForm({ ...memberForm, email: e.target.value })}
                 placeholder="joao@eld.agencia"
+                helperText={
+                  editingMember
+                    ? undefined
+                    : 'Um e-mail de convite será enviado para este endereço definir a senha de acesso.'
+                }
               />
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -791,8 +804,12 @@ export const SettingsPage: React.FC = () => {
                 >
                   Cancelar
                 </Button>
-                <Button type="submit" variant="primary" size="sm">
-                  {editingMember ? 'Salvar Alterações' : 'Adicionar Colaborador'}
+                <Button type="submit" variant="primary" size="sm" disabled={isSavingMember}>
+                  {isSavingMember
+                    ? 'Enviando...'
+                    : editingMember
+                      ? 'Salvar Alterações'
+                      : 'Enviar Convite'}
                 </Button>
               </div>
             </form>
