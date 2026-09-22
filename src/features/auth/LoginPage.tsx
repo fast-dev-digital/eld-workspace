@@ -12,7 +12,6 @@ import { toast } from 'sonner'
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate()
   const { setCurrentUser, isAuthenticated, isLoadingCloud } = useWorkspace()
-  const [mode, setMode] = useState<'login' | 'signup'>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -56,17 +55,6 @@ export const LoginPage: React.FC = () => {
 
     setIsSubmitting(true)
     try {
-      if (mode === 'signup') {
-        const { error } = await supabase.auth.signUp({ email, password })
-        if (error) {
-          toast.error(error.message)
-          return
-        }
-        toast.success('Conta criada! Verifique seu e-mail se a confirmação estiver ativa, ou faça login.')
-        setMode('login')
-        return
-      }
-
       const { error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) {
         toast.error(error.message)
@@ -131,19 +119,9 @@ export const LoginPage: React.FC = () => {
               rightIcon={<ArrowRight className="w-4 h-4" />}
               disabled={isSubmitting}
             >
-              {mode === 'signup' ? 'Criar Conta' : 'Entrar no Workspace'}
+              Entrar no Workspace
             </Button>
           </form>
-
-          {isSupabaseConfigured && (
-            <button
-              type="button"
-              onClick={() => setMode(mode === 'login' ? 'signup' : 'login')}
-              className="w-full text-center text-xs text-zinc-400 hover:text-white transition-colors"
-            >
-              {mode === 'login' ? 'Não tem conta? Criar uma agora' : 'Já tem conta? Fazer login'}
-            </button>
-          )}
 
           {!isSupabaseConfigured && (
             <>
