@@ -5,14 +5,17 @@ import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { ELDLogo } from '@/components/ui/ELDLogo'
 import { useWorkspace } from '@/context/WorkspaceContext'
+import { supabase, isSupabaseConfigured } from '@/lib/supabase'
 import { Lock, Mail, ArrowRight, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate()
   const { setCurrentUser } = useWorkspace()
+  const [mode, setMode] = useState<'login' | 'signup'>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const handleQuickLogin = () => {
     setCurrentUser({
@@ -20,20 +23,52 @@ export const LoginPage: React.FC = () => {
       email: 'admin@eld.agencia',
       role: 'admin',
     })
-
     toast.success('Bem-vindo ao ELD Workspace! Acesso concedido com sucesso.')
     navigate('/dashboard')
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setCurrentUser({
-      name: email.split('@')[0] || 'Gestor ELD',
-      email: email || 'admin@eld.agencia',
-      role: 'admin',
-    })
-    toast.success('Login efetuado no ELD Workspace!')
-    navigate('/dashboard')
+
+    if (!isSupabaseConfigured) {
+      setCurrentUser({
+        name: email.split('@')[0] || 'Gestor ELD',
+        email: email || 'admin@eld.agencia',
+        role: 'admin',
+      })
+      toast.success('Login efetuado no ELD Workspace!')
+      navigate('/dashboard')
+      return
+    }
+
+    if (!email || !password) {
+      toast.error('Informe e-mail e senha para continuar.')
+      return
+    }
+
+    setIsSubmitting(true)
+    try {
+      if (mode === 'signup') {
+        const { error } = await supabase.auth.signUp({ email, password })
+        if (error) {
+          toast.error(error.message)
+          return
+        }
+        toast.success('Conta criada! Verifique seu e-mail se a confirmação estiver ativa, ou faça login.')
+        setMode('login')
+        return
+      }
+
+      const { error } = await supabase.auth.signInWithPassword({ email, password })
+      if (error) {
+        toast.error(error.message)
+        return
+      }
+      toast.success('Login efetuado no ELD Workspace!')
+      navigate('/dashboard')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -86,26 +121,41 @@ export const LoginPage: React.FC = () => {
               size="lg"
               className="w-full font-semibold shadow-xs hover:shadow-sm"
               rightIcon={<ArrowRight className="w-4 h-4" />}
+              disabled={isSubmitting}
             >
-              Entrar no Workspace
+              {mode === 'signup' ? 'Criar Conta' : 'Entrar no Workspace'}
             </Button>
           </form>
 
-          <div className="relative flex items-center justify-center my-2">
-            <div className="border-t border-zinc-800 w-full" />
-            <span className="bg-zinc-900 px-3 text-[10px] text-zinc-500 uppercase tracking-widest absolute">
-              ou acesso direto
-            </span>
-          </div>
+          {isSupabaseConfigured && (
+            <button
+              type="button"
+              onClick={() => setMode(mode === 'login' ? 'signup' : 'login')}
+              className="w-full text-center text-xs text-zinc-400 hover:text-white transition-colors"
+            >
+              {mode === 'login' ? 'Não tem conta? Criar uma agora' : 'Já tem conta? Fazer login'}
+            </button>
+          )}
 
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full border-zinc-700 text-zinc-300 hover:bg-zinc-800 hover:text-white text-xs"
-            onClick={handleQuickLogin}
-          >
-            Acessar com Perfil Centralizado (Diretoria)
-          </Button>
+          {!isSupabaseConfigured && (
+            <>
+              <div className="relative flex items-center justify-center my-2">
+                <div className="border-t border-zinc-800 w-full" />
+                <span className="bg-zinc-900 px-3 text-[10px] text-zinc-500 uppercase tracking-widest absolute">
+                  ou acesso direto
+                </span>
+              </div>
+
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full border-zinc-700 text-zinc-300 hover:bg-zinc-800 hover:text-white text-xs"
+                onClick={handleQuickLogin}
+              >
+                Acessar com Perfil Centralizado (Diretoria)
+              </Button>
+            </>
+          )}
         </Card>
 
         {/* Footer */}

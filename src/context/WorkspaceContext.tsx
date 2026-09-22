@@ -25,8 +25,9 @@ import {
   initialContracts,
   initialTransactions,
 } from '@/lib/mockData'
-import { isSupabaseConfigured } from '@/lib/supabase'
+import { isSupabaseConfigured, supabase } from '@/lib/supabase'
 import { supabaseService } from '@/services/supabaseService'
+import { useAuth } from '@/hooks/useAuth'
 import { toast } from 'sonner'
 
 export type UserRole = 'admin' | 'comercial' | 'operacional' | 'financeiro'
@@ -67,6 +68,8 @@ interface WorkspaceContextType {
   setUserRole: (role: UserRole) => void
   isStandbyMode: boolean
   isLoadingCloud: boolean
+  isAuthenticated: boolean
+  logout: () => Promise<void>
 
   // Team
   teamMembers: TeamMember[]
@@ -192,20 +195,32 @@ function setStored<T>(key: string, value: T): void {
 }
 
 export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [currentUser, setCurrentUserState] = useState<UserProfile>(() => {
-    const stored = getStored<UserProfile>('user', {
+  const auth = useAuth()
+
+  const [localUser, setLocalUserState] = useState<UserProfile>(() =>
+    getStored<UserProfile>('user', {
       name: 'Diretoria Executiva',
       email: 'admin@eld.agencia',
       role: 'admin',
     })
-    return { ...stored, role: 'admin' }
-  })
+  )
 
   const isStandbyMode = !isSupabaseConfigured
-  const [isLoadingCloud, setIsLoadingCloud] = useState<boolean>(isSupabaseConfigured)
+
+  const currentUser: UserProfile = isSupabaseConfigured
+    ? {
+        name: auth.user?.email?.split('@')[0] || 'Usuário ELD',
+        email: auth.user?.email || '',
+        role: (auth.role as UserRole) || 'admin',
+      }
+    : localUser
+
+  const isAuthenticated = isSupabaseConfigured ? Boolean(auth.session) : true
+  const [isFetchingData, setIsFetchingData] = useState<boolean>(isSupabaseConfigured)
+  const isLoadingCloud = isSupabaseConfigured ? auth.isLoading || isFetchingData : false
 
   const setCurrentUser = (user: UserProfile) => {
-    setCurrentUserState(user)
+    setLocalUserState(user)
     setStored('user', user)
   }
 
@@ -213,6 +228,13 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const updated = { ...currentUser, role }
     setCurrentUser(updated)
     toast.info(`Perfil alterado para: ${role.toUpperCase()}`)
+  }
+
+  const logout = async () => {
+    if (isSupabaseConfigured) {
+      await supabase.auth.signOut()
+    }
+    toast.success('Sessão encerrada com sucesso.')
   }
 
   // 10 Modules State
@@ -256,10 +278,10 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   useEffect(() => setStored('team', teamMembers), [teamMembers])
   useEffect(() => setStored('agency_settings', agencySettings), [agencySettings])
 
-  // Real Supabase Sync on Mount
+  // Real Supabase Sync on Mount (só busca dados após autenticar)
   useEffect(() => {
-    if (isSupabaseConfigured) {
-      setIsLoadingCloud(true)
+    if (isSupabaseConfigured && isAuthenticated) {
+      setIsFetchingData(true)
       supabaseService
         .fetchAllData()
         .then((data) => {
@@ -288,9 +310,9 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             }
           }
         })
-        .finally(() => setIsLoadingCloud(false))
+        .finally(() => setIsFetchingData(false))
     }
-  }, [])
+  }, [isAuthenticated])
 
   // ============================
   // Helper: sincroniza com o Supabase e reverte o optimistic update se falhar.
@@ -824,6 +846,8 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         setUserRole,
         isStandbyMode,
         isLoadingCloud,
+        isAuthenticated,
+        logout,
         teamMembers,
         addTeamMember,
         updateTeamMember,
