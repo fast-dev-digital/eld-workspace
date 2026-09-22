@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Card } from '@/components/ui/Card'
 import { Input } from '@/components/ui/Input'
@@ -11,11 +11,19 @@ import { toast } from 'sonner'
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate()
-  const { setCurrentUser } = useWorkspace()
+  const { setCurrentUser, isAuthenticated, isLoadingCloud } = useWorkspace()
   const [mode, setMode] = useState<'login' | 'signup'>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // Só navega quando o WorkspaceContext confirmar sessão + organização carregadas,
+  // evitando a corrida em que /dashboard renderiza antes do onAuthStateChange resolver.
+  useEffect(() => {
+    if (isSupabaseConfigured && isAuthenticated && !isLoadingCloud) {
+      navigate('/dashboard')
+    }
+  }, [isAuthenticated, isLoadingCloud])
 
   const handleQuickLogin = () => {
     setCurrentUser({
@@ -65,7 +73,7 @@ export const LoginPage: React.FC = () => {
         return
       }
       toast.success('Login efetuado no ELD Workspace!')
-      navigate('/dashboard')
+      // A navegação ocorre no useEffect acima, assim que a sessão/organização carregarem.
     } finally {
       setIsSubmitting(false)
     }

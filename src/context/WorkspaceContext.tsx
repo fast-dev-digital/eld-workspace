@@ -72,6 +72,7 @@ export interface AgencySettings {
 interface WorkspaceContextType {
   // User & Auth Standby state
   currentUser: UserProfile
+  currentUserId: string | null
   setCurrentUser: (user: UserProfile) => void
   setUserRole: (role: UserRole) => void
   isStandbyMode: boolean
@@ -812,7 +813,11 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
 
     if (!auth.organizationId) {
-      toast.error('Organização não identificada. Recarregue a página e tente novamente.')
+      if (auth.isLoading) {
+        toast.error('Ainda carregando seus dados de acesso. Aguarde um instante e tente novamente.')
+      } else {
+        toast.error('Sua conta não está vinculada a nenhuma organização. Contate o administrador.')
+      }
       return false
     }
 
@@ -861,6 +866,18 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
 
     if (!auth.organizationId) return
+
+    if (id === auth.user?.id) {
+      toast.error('Você não pode remover a si mesmo da equipe.')
+      return
+    }
+
+    const adminsCount = teamMembers.filter((m) => m.role === 'admin').length
+    const target = teamMembers.find((m) => m.id === id)
+    if (target?.role === 'admin' && adminsCount <= 1) {
+      toast.error('Não é possível remover o único administrador da organização.')
+      return
+    }
 
     const { error } = await supabaseService.removeTeamMember(id, auth.organizationId)
     if (error) {
@@ -913,6 +930,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     <WorkspaceContext.Provider
       value={{
         currentUser,
+        currentUserId: isSupabaseConfigured ? auth.user?.id || null : null,
         setCurrentUser,
         setUserRole,
         isStandbyMode,

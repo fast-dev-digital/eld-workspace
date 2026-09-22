@@ -621,9 +621,9 @@ export const supabaseService = {
   // TEAM MEMBERS (organization_members + profiles)
   // ============================
   async fetchTeamMembers(organizationId: string) {
-    const { data, error } = await (supabase.from('organization_members') as any)
-      .select('id, role, created_at, profiles(id, full_name, phone, department)')
-      .eq('organization_id', organizationId)
+    const { data, error } = await (supabase.rpc as any)('get_organization_members_with_email', {
+      p_organization_id: organizationId,
+    })
 
     if (error || !data) {
       console.warn('[SupabaseService] buscar equipe:', error)
@@ -631,12 +631,12 @@ export const supabaseService = {
     }
 
     return data.map((m: any) => ({
-      id: m.profiles?.id || m.id,
-      name: m.profiles?.full_name || 'Sem nome',
-      email: '',
+      id: m.id,
+      name: m.full_name || 'Sem nome',
+      email: m.email || '',
       role: m.role,
-      department: m.profiles?.department || '',
-      phone: m.profiles?.phone || undefined,
+      department: m.department || '',
+      phone: m.phone || undefined,
       createdAt: m.created_at,
     }))
   },

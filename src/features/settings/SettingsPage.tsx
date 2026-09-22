@@ -31,6 +31,7 @@ type SettingsTab = 'geral' | 'equipe' | 'branding'
 export const SettingsPage: React.FC = () => {
   const {
     currentUser,
+    currentUserId,
     setCurrentUser,
     isStandbyMode,
     teamMembers,
@@ -521,17 +522,19 @@ export const SettingsPage: React.FC = () => {
                           >
                             <Edit2 className="w-3.5 h-3.5 inline" />
                           </button>
-                          <button
-                            onClick={() => {
-                              if (confirm(`Remover ${member.name} da equipe?`)) {
-                                deleteTeamMember(member.id)
-                              }
-                            }}
-                            className="p-1 text-zinc-400 hover:text-rose-600 rounded"
-                            title="Remover colaborador"
-                          >
-                            <Trash2 className="w-3.5 h-3.5 inline" />
-                          </button>
+                          {member.id !== currentUserId && (
+                            <button
+                              onClick={() => {
+                                if (confirm(`Remover ${member.name} da equipe?`)) {
+                                  deleteTeamMember(member.id)
+                                }
+                              }}
+                              className="p-1 text-zinc-400 hover:text-rose-600 rounded"
+                              title="Remover colaborador"
+                            >
+                              <Trash2 className="w-3.5 h-3.5 inline" />
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}
