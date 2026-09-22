@@ -21,7 +21,7 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({ onToggleMobileSidebar }) => {
   const navigate = useNavigate()
-  const { currentUser, isStandbyMode, tasks, approvals, meetings } = useWorkspace()
+  const { currentUser, isStandbyMode, tasks, approvals, meetings, logout } = useWorkspace()
 
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false)
   const notificationsRef = useRef<HTMLDivElement>(null)
@@ -52,7 +52,8 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileSidebar }) => {
     }
   }, [isNotificationsOpen])
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await logout()
     navigate('/login')
   }
 

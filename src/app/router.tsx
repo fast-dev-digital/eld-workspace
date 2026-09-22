@@ -1,6 +1,7 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { MainLayout } from '@/components/layout/MainLayout'
 import { LoginPage } from '@/features/auth/LoginPage'
+import { ProtectedRoute } from '@/features/auth/ProtectedRoute'
 import { DashboardPage } from '@/features/dashboard/DashboardPage'
 import { CRMPage } from '@/features/crm/CRMPage'
 import { ClientsPage } from '@/features/clients/ClientsPage'
@@ -20,7 +21,11 @@ export const router = createBrowserRouter([
   },
   {
     path: '/',
-    element: <MainLayout />,
+    element: (
+      <ProtectedRoute>
+        <MainLayout />
+      </ProtectedRoute>
+    ),
     children: [
       {
         index: true,
